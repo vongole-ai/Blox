@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Labs</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+    #wrap {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      /* base VHS color grade */
+      filter: saturate(1.4) contrast(1.1) brightness(0.92) sepia(0.15);
+    }
+
+    /* ── SCANLINES ── */
+    #scanlines {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(0,0,0,0.18) 3px,
+        rgba(0,0,0,0.18) 4px
+      );
+      z-index: 2;
+    }
+
+    /* ── VIGNETTE ── */
+    #vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center,
+        transparent 55%,
+        rgba(0,0,0,0.75) 100%
+      );
+      z-index: 3;
+    }
+
+    /* ── NOISE CANVAS ── */
+    #noise {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.07;
+      z-index: 4;
+    }
+
+    /* ── RGB SHIFT overlay ── */
+    #rgbshift {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+      mix-blend-mode: screen;
+      opacity: 0;
+    }
+
+    /* ── TAPE GLITCH horizontal bar ── */
+    #tapebar {
+      position: absolute;
+      left: 0; right: 0;
+      height: 3px;
+      background: rgba(255,255,255,0.55);
+      pointer-events: none;
+      z-index: 6;
+      opacity: 0;
+      filter: blur(0.5px);
+    }
+
+    /* ── FLICKER ── */
+    #flicker {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 7;
+      background: rgba(255,255,255,0);
+    }
+  </style>
+</head>
+<body>
+<div id="wrap">
+  <video muted playsinline id="v">
+    <source src="video.mp4" type="video/mp4" />
+  </video>
+
+  <div id="scanlines"></div>
+  <div id="vignette"></div>
+  <canvas id="noise"></canvas>
+  <canvas id="rgbshift"></canvas>
+  <div id="tapebar"></div>
+  <div id="flicker"></div>
+</div>
+
+<script>
+  const v        = document.getElementById('v');
+  const noise    = document.getElementById('noise');
+  const nctx     = noise.getContext('2d');
+  const rgb      = document.getElementById('rgbshift');
+  const rctx     = rgb.getContext('2d');
+  const tapebar  = document.getElementById('tapebar');
+  const flicker  = document.getElementById('flicker');
+
+  // ── RESIZE ─────────────────────────────────────────────
+  function resize() {
+    noise.width  = rgb.width  = window.innerWidth;
+    noise.height = rgb.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // ── NOISE ──────────────────────────────────────────────
+  function drawNoise() {
+    const w = noise.width, h = noise.height;
+    const img = nctx.createImageData(w, h);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = Math.random() * 255 | 0;
+      d[i] = d[i+1] = d[i+2] = v;
+      d[i+3] = 255;
+    }
+    nctx.putImageData(img, 0, 0);
+    requestAnimationFrame(drawNoise);
+  }
+  drawNoise();
+
+  // ── RGB CHROMATIC SHIFT ─────────────────────────────────
+  let rgbTimer = 0;
+  function drawRGB(ts) {
+    const w = rgb.width, h = rgb.height;
+    rctx.clearRect(0, 0, w, h);
+
+    if (ts - rgbTimer > (800 + Math.random() * 2000)) {
+      rgbTimer = ts;
+      const shift = 4 + Math.random() * 8;
+      const dur   = 60 + Math.random() * 120;
+      const start = ts;
+
+      rgb.style.opacity = 0.55;
+
+      function animShift(now) {
+        if (now - start > dur) { rgb.style.opacity = 0; return; }
+        rctx.clearRect(0, 0, w, h);
+        // red channel offset left
+        rctx.globalCompositeOperation = 'source-over';
+        rctx.fillStyle = `rgba(255,0,0,0.35)`;
+        rctx.fillRect(-shift, 0, w, h);
+        // blue channel offset right
+        rctx.fillStyle = `rgba(0,0,255,0.35)`;
+        rctx.fillRect(shift, 0, w, h);
+        requestAnimationFrame(animShift);
+      }
+      requestAnimationFrame(animShift);
+    }
+    requestAnimationFrame(drawRGB);
+  }
+  requestAnimationFrame(drawRGB);
+
+  // ── TAPE BAR ───────────────────────────────────────────
+  function randomTapeBar() {
+    const delay = 2000 + Math.random() * 5000;
+    setTimeout(() => {
+      tapebar.style.top    = (10 + Math.random() * 80) + 'vh';
+      tapebar.style.height = (1 + Math.random() * 5) + 'px';
+      tapebar.style.opacity = 0.4 + Math.random() * 0.5;
+      tapebar.style.transition = 'opacity 0.05s';
+      setTimeout(() => { tapebar.style.opacity = 0; }, 80 + Math.random() * 120);
+      randomTapeBar();
+    }, delay);
+  }
+  randomTapeBar();
+
+  // ── FLICKER ────────────────────────────────────────────
+  function randomFlicker() {
+    const delay = 3000 + Math.random() * 7000;
+    setTimeout(() => {
+      const brightness = 0.04 + Math.random() * 0.08;
+      flicker.style.background = `rgba(255,255,255,${brightness})`;
+      flicker.style.transition = 'background 0.04s';
+      setTimeout(() => {
+        flicker.style.background = 'rgba(255,255,255,0)';
+      }, 40 + Math.random() * 60);
+      randomFlicker();
+    }, delay);
+  }
+  randomFlicker();
+
+  // ── VIDEO PING-PONG LOOP ───────────────────────────────
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function waitUntil(cond) {
+    return new Promise(r => {
+      (function check() { cond() ? r() : requestAnimationFrame(check); })();
+    });
+  }
+
+  function animateRate(from, to, ms) {
+    return new Promise(r => {
+      const t0 = performance.now();
+      (function tick(now) {
+        const p    = Math.min((now - t0) / ms, 1);
+        const ease = p < 0.5 ? 2*p*p : -1+(4-2*p)*p;
+        v.playbackRate = Math.max(0.07, from + (to - from) * ease);
+        p < 1 ? requestAnimationFrame(tick) : r();
+      })(performance.now());
+    });
+  }
+
+  function fwNormal()  { return new Promise(r => { v.playbackRate=1;   v.currentTime=0; v.play(); v.addEventListener('ended',r,{once:true}); }); }
+  function fwFast()    { return new Promise(r => { v.playbackRate=2.5; v.currentTime=0; v.play(); v.addEventListener('ended',r,{once:true}); }); }
+  function fwSlow()    { return new Promise(r => { v.playbackRate=0.3; v.currentTime=0; v.play(); v.addEventListener('ended',r,{once:true}); }); }
+
+  function fwFreeze() {
+    return new Promise(async r => {
+      v.playbackRate=1; v.currentTime=0; v.play();
+      const at  = v.duration*(0.3+Math.random()*0.4);
+      const dur = 600+Math.random()*1400;
+      await waitUntil(()=>v.currentTime>=at);
+      v.pause(); await sleep(dur); v.play();
+      v.addEventListener('ended',r,{once:true});
+    });
+  }
+
+  function fwTapeStop() {
+    return new Promise(async r => {
+      v.playbackRate=1; v.currentTime=0; v.play();
+      const at = v.duration*(0.35+Math.random()*0.3);
+      await waitUntil(()=>v.currentTime>=at);
+      await animateRate(1,0.07,700);
+      v.pause(); await sleep(500+Math.random()*700); v.play();
+      await animateRate(0.07,1,500);
+      v.addEventListener('ended',r,{once:true});
+    });
+  }
+
+  function fwStutter() {
+    return new Promise(async r => {
+      v.playbackRate=1; v.currentTime=0; v.play();
+      const n = 3+Math.floor(Math.random()*4);
+      const interval = v.duration/(n+1);
+      for(let i=1;i<=n;i++){
+        await waitUntil(()=>v.currentTime>=interval*i||v.ended);
+        if(v.ended) break;
+        v.pause(); await sleep(60+Math.random()*120); v.play();
+      }
+      if(!v.ended) v.addEventListener('ended',r,{once:true}); else r();
+    });
+  }
+
+  function fwAccel() {
+    return new Promise(async r => {
+      v.currentTime=0; v.play();
+      await animateRate(0.4,2.5,v.duration*1000*0.9);
+      v.addEventListener('ended',r,{once:true});
+    });
+  }
+
+  function reversePass(step) {
+    return new Promise(r => {
+      (function tick() {
+        v.currentTime = Math.max(0, v.currentTime-step);
+        v.currentTime<=0.05 ? (v.currentTime=0, r()) : requestAnimationFrame(tick);
+      })();
+    });
+  }
+
+  async function reverseFreeze() {
+    const at = v.duration*(0.3+Math.random()*0.4);
+    let froze = false;
+    return new Promise(r => {
+      (function tick() {
+        if(!froze && v.currentTime<=at){
+          froze=true; sleep(500+Math.random()*1200).then(()=>requestAnimationFrame(tick)); return;
+        }
+        v.currentTime=Math.max(0,v.currentTime-0.033);
+        v.currentTime<=0.05?(v.currentTime=0,r()):requestAnimationFrame(tick);
+      })();
+    });
+  }
+
+  const fwPool = [fwNormal,fwFast,fwSlow,fwFreeze,fwTapeStop,fwStutter,fwAccel,fwNormal,fwTapeStop];
+  const rvPool = [
+    ()=>reversePass(0.033), ()=>reversePass(0.066),
+    ()=>reversePass(0.016), ()=>reversePass(0.1),
+    ()=>reverseFreeze()
+  ];
+
+  function pick(pool){ return pool[Math.floor(Math.random()*pool.length)]; }
+
+  async function runLoop() {
+    while(true){ await pick(fwPool)(); await pick(rvPool)(); }
+  }
+
+  v.addEventListener('loadedmetadata', runLoop);
+</script>
+</body>
+</html>
