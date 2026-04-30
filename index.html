@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Labs</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  </style>
+</head>
+<body>
+  <video muted playsinline id="v">
+    <source src="video.mp4" type="video/mp4" />
+  </video>
+
+  <script>
+    const v = document.getElementById('v');
+
+    // ── UTILS ──────────────────────────────────────────────
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    function waitUntil(cond) {
+      return new Promise(r => {
+        (function check() { cond() ? r() : requestAnimationFrame(check); })();
+      });
+    }
+
+    function animateRate(from, to, ms) {
+      return new Promise(r => {
+        const t0 = performance.now();
+        (function tick(now) {
+          const p = Math.min((now - t0) / ms, 1);
+          // ease in-out
+          const ease = p < 0.5 ? 2*p*p : -1+(4-2*p)*p;
+          v.playbackRate = Math.max(0.07, from + (to - from) * ease);
+          p < 1 ? requestAnimationFrame(tick) : r();
+        })(performance.now());
+      });
+    }
+
+    // ── FORWARD PASS BEHAVIOURS ────────────────────────────
+
+    // 1. Normal speed
+    function fwNormal() {
+      return new Promise(r => {
+        v.playbackRate = 1;
+        v.currentTime  = 0;
+        v.play();
+        v.addEventListener('ended', r, { once: true });
+      });
+    }
+
+    // 2. Fast rush
+    function fwFast() {
+      return new Promise(r => {
+        v.playbackRate = 2.5;
+        v.currentTime  = 0;
+        v.play();
+        v.addEventListener('ended', r, { once: true });
+      });
+    }
+
+    // 3. Dreamy slow
+    function fwSlow() {
+      return new Promise(r => {
+        v.playbackRate = 0.3;
+        v.currentTime  = 0;
+        v.play();
+        v.addEventListener('ended', r, { once: true });
+      });
+    }
+
+    // 4. Freeze mid-play then continue
+    function fwFreeze() {
+      return new Promise(async r => {
+        v.playbackRate = 1;
+        v.currentTime  = 0;
+        v.play();
+
+        const freezeAt  = v.duration * (0.3 + Math.random() * 0.4);
+        const freezeFor = 600 + Math.random() * 1400;
+
+        await waitUntil(() => v.currentTime >= freezeAt);
+        v.pause();
+        await sleep(freezeFor);
+        v.play();
+        v.addEventListener('ended', r, { once: true });
+      });
+    }
+
+    // 5. Tape stop: slows, freezes, resumes
+    function fwTapeStop() {
+      return new Promise(async r => {
+        v.playbackRate = 1;
+        v.currentTime  = 0;
+        v.play();
+
+        const stopAt = v.duration * (0.35 + Math.random() * 0.3);
+        await waitUntil(() => v.currentTime >= stopAt);
+
+        await animateRate(1, 0.07, 700);
+        v.pause();
+        await sleep(500 + Math.random() * 700);
+        v.play();
+        await animateRate(0.07, 1, 500);
+
+        v.addEventListener('ended', r, { once: true });
+      });
+    }
+
+    // 6. Stutter: small random micro-pauses
+    function fwStutter() {
+      return new Promise(async r => {
+        v.playbackRate = 1;
+        v.currentTime  = 0;
+        v.play();
+
+        const stutterCount = 3 + Math.floor(Math.random() * 4);
+        const interval = v.duration / (stutterCount + 1);
+
+        for (let i = 1; i <= stutterCount; i++) {
+          const target = interval * i;
+          await waitUntil(() => v.currentTime >= target || v.ended);
+          if (v.ended) break;
+          v.pause();
+          await sleep(60 + Math.random() * 120);
+          v.play();
+        }
+
+        if (!v.ended) {
+          v.addEventListener('ended', r, { once: true });
+        } else {
+          r();
+        }
+      });
+    }
+
+    // 7. Accelerate during play
+    function fwAccel() {
+      return new Promise(async r => {
+        v.currentTime = 0;
+        v.play();
+        await animateRate(0.4, 2.5, v.duration * 1000 * 0.9);
+        v.addEventListener('ended', r, { once: true });
+      });
+    }
+
+    // 8. Decelerate during play
+    function fwDecel() {
+      return new Promise(async r => {
+        v.currentTime = 0;
+        v.play();
+        await animateRate(2.5, 0.25, v.duration * 1000 * 0.9);
+        v.addEventListener('ended', r, { once: true });
+      });
+    }
+
+    // ── REVERSE PASS ──────────────────────────────────────
+    function reversePass(stepSize) {
+      return new Promise(r => {
+        (function tick() {
+          v.currentTime = Math.max(0, v.currentTime - stepSize);
+          v.currentTime <= 0.05 ? (v.currentTime = 0, r()) : requestAnimationFrame(tick);
+        })();
+      });
+    }
+
+    // Reverse with mid-freeze
+    async function reverseFreeze() {
+      const freezeAt  = v.duration * (0.3 + Math.random() * 0.4);
+      const freezeFor = 500 + Math.random() * 1200;
+      let froze = false;
+
+      return new Promise(r => {
+        (function tick() {
+          if (!froze && v.currentTime <= freezeAt) {
+            froze = true;
+            sleep(freezeFor).then(() => requestAnimationFrame(tick));
+            return;
+          }
+          v.currentTime = Math.max(0, v.currentTime - 0.033);
+          v.currentTime <= 0.05 ? (v.currentTime = 0, r()) : requestAnimationFrame(tick);
+        })();
+      });
+    }
+
+    // ── POOL & SEQUENCER ──────────────────────────────────
+    const fwPool = [
+      fwNormal, fwFast, fwSlow, fwFreeze,
+      fwTapeStop, fwStutter, fwAccel, fwDecel,
+      fwNormal, fwTapeStop   // slight weight toward dramatic ones
+    ];
+
+    const rvPool = [
+      () => reversePass(0.033),         // normal reverse
+      () => reversePass(0.066),         // fast reverse
+      () => reversePass(0.016),         // slow dreamy reverse
+      () => reversePass(0.1),           // very fast rewind
+      () => reverseFreeze(),            // reverse with pause
+    ];
+
+    function pick(pool) {
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    async function runLoop() {
+      while (true) {
+        await pick(fwPool)();
+        await pick(rvPool)();
+      }
+    }
+
+    v.addEventListener('loadedmetadata', runLoop);
+  </script>
+</body>
+</html>
