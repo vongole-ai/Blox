@@ -17,10 +17,10 @@
         // El código GLSL separado en una variable para evitar errores de comillas en el HTML
         const fragmentShader = `
             precision highp float;
-            uniform vec2 resolution;
-            uniform float time;
+            uniform vec2 u_resolution;
+            uniform float u_time;
 
-            #define T (time*0.2)
+            #define T (u_time*0.2)
 
             float hash(vec2 p){
                 p = fract(p*vec2(123.34, 345.45));
@@ -128,7 +128,7 @@
             }
 
             void main(){
-                vec2 res = resolution;
+                vec2 res = u_resolution;
                 vec2 uv = (gl_FragCoord.xy*2.0 - res)/min(res.x, res.y);
                 vec3 ro = vec3(sin(T*0.5)*2.0, 2.0 + sin(T*0.3)*0.5, T*4.0);
                 vec3 target = vec3(sin(T*0.5)*2.0, 1.0, T*4.0 + 5.0);
@@ -159,18 +159,26 @@
             }
         `;
 
-        // Función para cargar el script y ejecutar el shader
+        // Función para cargar glslCanvas y arrancar el shader
         function loadShader() {
             const script = document.createElement('script');
             script.src = "https://cdn.jsdelivr.net/gh/patriciogonzalezvivo/glslCanvas/dist/glslCanvas.js";
             script.onload = () => {
                 const canvas = document.getElementById('shader-canvas');
-                canvas.setAttribute('data-fragment', fragmentShader);
-                // Forzamos a glslCanvas a reconocer el canvas ya que el DOM ya estaba cargado
-                if (window.glslCanvas) {
-                    // El script suele auto-inicializar, pero esto asegura la carga
-                    console.log("Shader cargado correctamente");
-                }
+
+                // Asegurar que el buffer de dibujo tenga la resolución real de la pantalla
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+
+                // Instanciamos glslCanvas manualmente y le pasamos el shader
+                const sandbox = new GlslCanvas(canvas);
+                sandbox.load(fragmentShader);
+
+                // Reajustar resolución al cambiar el tamaño de la ventana
+                window.addEventListener('resize', () => {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                });
             };
             document.body.appendChild(script);
         }
