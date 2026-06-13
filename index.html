@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Abismo Bioluminiscente</title>
+    <title>bloxbcn</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
         canvas { width: 100vw; height: 100vh; display: block; }
@@ -14,8 +14,10 @@
     <canvas id="shader-canvas"></canvas>
 
     <script>
-        // El código GLSL separado en una variable para evitar errores de comillas en el HTML
-        const fragmentShader = `
+        // ============================================================
+        // SHADER 1 - Abismo Bioluminiscente
+        // ============================================================
+        const shader1 = `
             precision highp float;
             uniform vec2 u_resolution;
             uniform float u_time;
@@ -159,22 +161,584 @@
             }
         `;
 
-        // Función para cargar glslCanvas y arrancar el shader
+        // ============================================================
+        // SHADER 2 - Cristales Etéreos
+        // ============================================================
+        const shader2 = `
+            precision highp float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+
+            #define T (u_time*0.2)
+
+            float hash(vec2 p){
+                p = fract(p*vec2(123.34, 345.45));
+                p += dot(p, p+34.345);
+                return fract(p.x*p.y);
+            }
+
+            float n2(vec2 p){
+                vec2 i = floor(p), f = fract(p);
+                f = f*f*(3.0-2.0*f);
+                return mix(mix(hash(i), hash(i+vec2(1.0,0.0)), f.x),
+                           mix(hash(i+vec2(0.0,1.0)), hash(i+vec2(1.0,1.0)), f.y), f.y);
+            }
+
+            float fbm(vec2 p){
+                float v = 0.0, a = 0.5;
+                for(int i=0;i<4;i++){
+                    v += a*n2(p);
+                    p = mat2(1.6,1.2,-1.2,1.6)*p;
+                    a *= 0.5;
+                }
+                return v;
+            }
+
+            // ---- Geometría de Cristal ----------------------------------------------
+            float sdBox(vec3 p, vec3 b){
+                vec3 q = abs(p) - b;
+                return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
+            }
+
+            float crystal(vec3 p, float seed){
+                // Rotación aleatoria basada en semilla
+                float a = seed * 6.28;
+                mat2 rot = mat2(cos(a), -sin(a), sin(a), cos(a));
+                p.xz *= rot;
+                p.xy *= rot;
+
+                // Estiramiento para crear forma de prisma
+                vec3 s = vec3(0.2, 1.2 + seed, 0.2);
+                float d = sdBox(p, s);
+
+                // Añadir facetas adicionales
+                float facets = sdBox(p * 1.5, s * 0.5);
+                return min(d, facets);
+            }
+
+            float scene(vec3 p){
+                // Suelo y techo infinitos con ruido
+                float ground = p.y + 2.0 + fbm(p.xz * 0.1) * 0.5;
+                float ceiling = -p.y + 2.0 + fbm(p.xz * 0.1 + 10.0) * 0.5;
+                float cave = max(ground, ceiling);
+
+                // Repetición de cristales en el espacio
+                float s = 6.0;
+                vec3 q = vec3(mod(p.x+s*0.5, s)-s*0.5, p.y, mod(p.z+s*0.5, s)-s*0.5);
+
+                float seed = hash(floor(p.xz/s));
+                float crys = crystal(q - vec3(0.0, sin(T + seed*10.0)*1.0, 0.0), seed);
+
+                return min(cave, crys);
+            }
+
+            vec3 norm(vec3 p){
+                vec2 e = vec2(0.01, 0.0);
+                return normalize(vec3(
+                    scene(p+e.xyy) - scene(p-e.xyy),
+                    scene(p+e.yxy) - scene(p-e.yxy),
+                    scene(p+e.yyx) - scene(p-e.yyx)
+                ));
+            }
+
+            vec2 march(vec3 ro, vec3 rd){
+                float t = 0.0;
+                for(int i=0;i<80;i++){
+                    float h = scene(ro + rd*t);
+                    if(h < 0.001 * t + 0.001) return vec2(t, 1.0);
+                    t += h;
+                    if(t > 40.0) break;
+                }
+                return vec2(t, -1.0);
+            }
+
+            // ---- Color e Iridiscencia ---------------------------------------------
+            vec3 palette(float t){
+                // Paleta: Oro, Amatista, Diamante
+                vec3 a = vec3(0.5, 0.5, 0.5);
+                vec3 b = vec3(0.5, 0.5, 0.5);
+                vec3 c = vec3(1.0, 1.0, 1.0);
+                vec3 d = vec3(0.263, 0.416, 0.557);
+                return a + b*cos(6.28318*(c*t+d));
+            }
+
+            vec3 iridescent(vec3 n, vec3 rd){
+                float fresnel = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);
+                float angle = atan(n.x, n.z);
+                return mix(vec3(0.8, 0.9, 1.0), palette(angle + T), fresnel);
+            }
+
+            vec3 aces(vec3 x){
+                return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0);
+            }
+
+            void main(){
+                vec2 res = u_resolution;
+                vec2 uv = (gl_FragCoord.xy*2.0 - res)/min(res.x, res.y);
+
+                // Cámara: Vuelo etéreo
+                vec3 ro = vec3(sin(T*0.3)*3.0, 0.0, T*2.0);
+                vec3 target = vec3(sin(T*0.3)*3.0, 0.0, T*2.0 + 5.0);
+                vec3 ww = normalize(target - ro);
+                vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
+                vec3 vv = cross(uu, ww);
+                vec3 rd = normalize(uv.x*uu + uv.y*vv + 2.0*ww);
+
+                vec2 hit = march(ro, rd);
+                vec3 col;
+
+                if(hit.y < 0.0){
+                    // Fondo astral
+                    float sky = fbm(rd.xz * 0.5 + T*0.1);
+                    col = mix(vec3(0.02, 0.02, 0.05), vec3(0.1, 0.1, 0.2), sky);
+                    col += pow(max(0.0, rd.y), 2.0) * vec3(0.1, 0.2, 0.3);
+                } else {
+                    vec3 p = ro + rd*hit.x;
+                    vec3 n = norm(p);
+
+                    // Material cristalino
+                    vec3 baseCol = iridescent(n, rd);
+                    float dif = clamp(dot(n, normalize(vec3(1,2,1))), 0.0, 1.0);
+                    float spec = pow(max(0.0, dot(reflect(rd, n), normalize(vec3(1,2,1)))), 32.0);
+
+                    col = baseCol * (dif + 0.2) + spec * 0.8;
+
+                    // Niebla etérea
+                    float fog = 1.0 - exp(-hit.x * 0.15);
+                    col = mix(col, vec3(0.05, 0.05, 0.1), fog);
+                }
+
+                // Partículas de polvo estelar
+                vec2 sc = gl_FragCoord.xy/res;
+                float p1 = n2(vec2(sc.x*120.0 + T, sc.y*120.0 - T));
+                col += smoothstep(0.99, 1.0, p1) * vec3(1.0, 0.9, 0.7) * 0.4;
+
+                // Post-procesado
+                col = aces(col * 1.3);
+                col = pow(max(col, vec3(0.0)), vec3(0.4545));
+                col *= 1.0 - 0.3 * dot(uv, uv); // Viñeta
+
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `;
+
+        // ============================================================
+        // SHADER 3 - Amazonia
+        // ============================================================
+        const shader3 = `
+            precision highp float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+
+            #define T (u_time*0.35)
+
+            float g_sun, g_fog;
+            vec3 g_ld;
+
+            float hash(vec2 p){
+                p = fract(p*vec2(123.34, 345.45));
+                p += dot(p, p+34.345);
+                return fract(p.x*p.y);
+            }
+            float n2(vec2 p){
+                vec2 i = floor(p), f = fract(p);
+                f = f*f*(3.0-2.0*f);
+                return mix(mix(hash(i), hash(i+vec2(1.0,0.0)), f.x),
+                           mix(hash(i+vec2(0.0,1.0)), hash(i+vec2(1.0,1.0)), f.y), f.y);
+            }
+            float fbm(vec2 p){
+                float v = 0.0, a = 0.5;
+                for(int i=0;i<5;i++){
+                    v += a*n2(p);
+                    p = mat2(1.6,1.2,-1.2,1.6)*p;
+                    a *= 0.5;
+                }
+                return v;
+            }
+
+            // ---- río de la selva --------------------------------------------------
+            float river(vec2 p){
+                float h = 0.0, a = 1.0;
+                vec2 q = p*0.08;
+                // curvas del río
+                q.x += sin(q.y*0.5)*3.0;
+                for(int i=0;i<3;i++){
+                    float w = n2(q + vec2(T*0.4, T*0.2));
+                    h += w*a;
+                    q = mat2(1.5,1.0,-1.0,1.5)*q;
+                    a *= 0.5;
+                }
+                return h*0.8 - 1.5;
+            }
+
+            // ---- vegetación tropical -----------------------------------------------
+            float sdCylinder(vec3 p, float r, float h){
+                return max(length(p.xz)-r, abs(p.y)-h);
+            }
+            float sdCapsule(vec3 p, vec3 a, vec3 b, float r){
+                vec3 pa = p-a, ba = b-a;
+                float h = clamp(dot(pa,ba)/dot(ba,ba), 0.0, 1.0);
+                return length(pa - ba*h) - r;
+            }
+            float tree(vec3 p, float seed){
+                float h = 8.0 + seed*6.0;
+                float w = 0.4 + seed*0.3;
+                // tronco torcido
+                float twist = sin(p.y*0.3 + seed*10.0)*0.3;
+                vec3 tp = vec3(p.x - twist, p.y, p.z);
+                float trunk = sdCylinder(tp, w*0.6, h*0.5);
+                // raíces aéreas
+                float roots = sdCylinder(tp - vec3(w*0.8, 0.0, 0.0), w*0.3, h*0.3);
+                roots = min(roots, sdCylinder(tp - vec3(-w*0.8, 0.0, 0.0), w*0.3, h*0.3));
+                float d = min(trunk, roots);
+                // copa del árbol (esferas para follaje)
+                float canopy = length(tp - vec3(0.0, h, 0.0)) - (2.0 + seed);
+                canopy = min(canopy, length(tp - vec3(1.5, h-0.5, 0.0)) - 1.5);
+                canopy = min(canopy, length(tp - vec3(-1.2, h-0.3, 1.0)) - 1.3);
+                d = min(d, canopy);
+                return d;
+            }
+            float liana(vec3 p, vec3 a, vec3 b, float r){
+                // liana ondulante
+                vec3 pa = p-a, ba = b-a;
+                float h = clamp(dot(pa,ba)/dot(ba,ba), 0.0, 1.0);
+                vec3 closest = a + ba*h;
+                float wave = sin(h*8.0 + T)*0.15;
+                float d = length(p.xz - closest.xz - vec2(wave, 0.0)) - r;
+                return max(d, abs(p.y - closest.y) - length(ba)*0.5);
+            }
+            float vegetation(vec3 p){
+                float s = 12.0;
+                vec2 id = floor(p.xz/s);
+                vec2 q = p.xz - (id+0.5)*s;
+                q += (vec2(hash(id+7.0), hash(id+23.0))-0.5)*4.0;
+                float seed = hash(id);
+                // árbol principal
+                float d = tree(vec3(q.x, p.y, q.y), seed);
+                // lianas colgantes
+                vec3 start = vec3(q.x, 6.0 + seed*4.0, q.y);
+                vec3 end = start + vec3(sin(seed*10.0)*2.0, -4.0 - seed*3.0, cos(seed*10.0)*2.0);
+                float li = liana(p, start, end, 0.08);
+                d = min(d, li);
+                // helechos en el suelo
+                float fern = length(p - vec3(q.x, 0.5, q.y)) - (0.8 + seed*0.5);
+                fern = max(fern, abs(p.y - 0.5) - 0.3);
+                d = min(d, fern);
+                return d;
+            }
+            // troncos caídos en el río
+            float fallenLogs(vec3 p){
+                vec3 q = vec3(mod(p.x, 25.0) - 12.5, p.y, p.z);
+                float logD = sdCylinder(q - vec3(0.0, 0.3, 0.0), 0.4, 8.0);
+                logD = min(logD, sdCylinder(q - vec3(5.0, 0.2, 2.0), 0.35, 6.0));
+                return logD;
+            }
+
+            vec2 map(vec3 p){
+                float dw = (p.y - river(p.xz))*0.5;
+                float dv = min(vegetation(p), fallenLogs(p))*0.8;
+                return dw < dv ? vec2(dw, 1.0) : vec2(dv, 2.0);
+            }
+            vec3 norm(vec3 p){
+                vec2 e = vec2(0.012, -0.012);
+                return normalize(e.xyy*map(p+e.xyy).x + e.yyx*map(p+e.yyx).x +
+                                 e.yxy*map(p+e.yxy).x + e.xxx*map(p+e.xxx).x);
+            }
+            vec2 march(vec3 ro, vec3 rd){
+                float t = 0.0, m = -1.0;
+                for(int i=0;i<90;i++){
+                    vec2 h = map(ro + rd*t);
+                    if(h.x < 0.0025*t + 0.001){ m = h.y; break; }
+                    t += h.x*0.9;
+                    if(t > 100.0) break;
+                }
+                if(t > 100.0) m = -1.0;
+                return vec2(t, m);
+            }
+            vec2 marchR(vec3 ro, vec3 rd){
+                float t = 0.0, m = -1.0;
+                for(int i=0;i<40;i++){
+                    vec2 h = map(ro + rd*t);
+                    if(h.x < 0.004*t + 0.002){ m = h.y; break; }
+                    t += h.x*0.95;
+                    if(t > 50.0) break;
+                }
+                if(t > 50.0) m = -1.0;
+                return vec2(t, m);
+            }
+
+            // ---- cielo amazónico --------------------------------------------------
+            vec3 skyColor(vec3 rd){
+                float y = max(rd.y, 0.0);
+                // azul tropical brillante
+                vec3 col = mix(vec3(0.2, 0.5, 0.9), vec3(0.6, 0.85, 1.0), pow(y, 0.5));
+                // nubes de tormenta tropical
+                vec2 cuv = rd.xz/max(rd.y*0.6+0.2, 0.1);
+                float cm = smoothstep(0.3, 0.95, fbm(cuv*0.6+vec2(T*0.8, T*0.4))*0.7
+                                                + fbm(cuv*1.8-vec2(T*1.5, T*0.6))*0.5);
+                col = mix(col, vec3(0.9, 0.95, 1.0), cm*0.4);
+                // sol tropical intenso
+                float sun = pow(max(dot(rd, g_ld), 0.0), 8.0);
+                col += vec3(1.0, 0.9, 0.6)*sun*g_sun;
+                return col;
+            }
+
+            // ---- shading de vegetación --------------------------------------------
+            vec3 jungleColor(vec3 p, vec3 n, vec3 rd){
+                float tx = n2(p.xz*4.0 + vec2(p.y*3.0, 0.0));
+                // verdes de la selva: desde musgo oscuro hasta hojas brillantes
+                vec3 darkGreen = vec3(0.05, 0.25, 0.08);
+                vec3 leafGreen = vec3(0.15, 0.55, 0.12);
+                vec3 lightGreen = vec3(0.35, 0.75, 0.25);
+                vec3 col = mix(darkGreen, leafGreen, tx);
+                col = mix(col, lightGreen, n2(p.xy*3.0)*0.5);
+
+                // madera del tronco
+                float isTrunk = step(abs(n.y), 0.3);
+                vec3 wood = vec3(0.25, 0.15, 0.08) * (0.7 + 0.4*tx);
+                col = mix(col, wood, isTrunk);
+
+                float dif = clamp(dot(n, g_ld), 0.0, 1.0);
+                float amb = clamp(0.3 + 0.4*n.y, 0.0, 1.0);
+
+                // luz filtrada por el dosel (dappled light)
+                float canopy = n2(p.xz*8.0)*n2(p.xz*15.0 + T);
+                float dapple = smoothstep(0.4, 0.7, canopy);
+
+                col = col*(vec3(0.8, 0.9, 0.6)*dif*dapple + vec3(0.1, 0.15, 0.08)*amb + 0.08);
+                // musgo húmedo brillante
+                col += vec3(0.1, 0.3, 0.15)*step(0.6, tx)*dif*0.5;
+
+                return col;
+            }
+
+            vec3 aces(vec3 x){
+                return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0);
+            }
+
+            void main(){
+                vec2 res = u_resolution;
+                vec2 uv = (gl_FragCoord.xy*2.0 - res)/min(res.x, res.y);
+
+                // sol tropical brillante
+                g_sun = 1.2;
+                g_ld = normalize(vec3(0.4, 0.85, 0.3));
+                g_fog = 0.0;
+
+                // cámara: navegando por el río en bote
+                vec3 ro = vec3(0.6*sin(T*0.4), 1.2 + 0.15*sin(u_time*0.5), T*6.0);
+                float yaw = 0.15*sin(u_time*0.08);
+                vec3 ww = normalize(vec3(sin(yaw), -0.08, cos(yaw)));
+                vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
+                vec3 vv = cross(uu, ww);
+                vec3 rd = normalize(uv.x*uu + uv.y*vv + 1.6*ww);
+
+                vec2 hit = march(ro, rd);
+                vec3 col;
+                if(hit.y < 0.0){
+                    col = skyColor(rd);
+                } else {
+                    vec3 p = ro + rd*hit.x;
+                    vec3 n = norm(p);
+                    if(hit.y < 1.5){
+                        // ---- agua del río ----
+                        vec2 dq = p.xz*3.0 - vec2(T*1.2, T*0.8);
+                        float h0 = n2(dq);
+                        n = normalize(n + vec3(-(n2(dq+vec2(0.05,0.0))-h0), 0.0,
+                                               -(n2(dq+vec2(0.0,0.05))-h0))*1.5);
+                        vec3 rr = normalize(reflect(rd, n));
+                        float fre = pow(1.0 - max(dot(n,-rd), 0.0), 4.0);
+
+                        // color del río: café-sedimentoso a verde
+                        vec3 base = vec3(0.08, 0.15, 0.12) + vec3(0.05, 0.1, 0.08)*smoothstep(-1.0, 1.5, p.y);
+                        // reflejo del cielo y vegetación
+                        vec3 rcol;
+                        vec2 rh = marchR(p + n*0.06, rr);
+                        if(rh.y > 1.5){
+                            vec3 rp = p + n*0.06 + rr*rh.x;
+                            rcol = jungleColor(rp, norm(rp), rr);
+                            rcol = mix(rcol, skyColor(rr), 1.0 - exp(-rh.x*rh.x*0.001));
+                        } else {
+                            rcol = skyColor(rr);
+                        }
+                        col = mix(base, rcol, 0.35 + 0.55*fre);
+                        // brillo del sol en el agua
+                        col += vec3(0.8, 0.9, 0.6)*pow(max(dot(rr, g_ld), 0.0), 60.0)*0.8;
+                    } else {
+                        col = jungleColor(p, n, rd);
+                    }
+                    // niebla de la selva (humedad)
+                    float fog = 1.0 - exp(-hit.x*hit.x*0.00015);
+                    col = mix(col, vec3(0.4, 0.6, 0.5)*0.8, fog*0.6);
+                }
+
+                // partículas: polen, insectos, motas de luz
+                vec2 sc = gl_FragCoord.xy/res;
+                float part1 = n2(vec2(sc.x*150.0 + sc.y*30.0 + u_time*0.5, sc.y*8.0 + u_time*5.0));
+                float part2 = n2(vec2(sc.x*250.0 - sc.y*50.0, sc.y*12.0 + u_time*8.0));
+                col += (smoothstep(0.75,0.98,part1)*0.12 + smoothstep(0.80,0.99,part2)*0.06)
+                     * vec3(0.9, 1.0, 0.7);
+
+                // post-procesado: vibrante y húmedo
+                col *= vec3(0.95, 1.05, 0.9);
+                col *= 1.0 - 0.25*dot(uv*0.5, uv*0.5);
+                col = aces(col*1.15);
+                col = pow(max(col, vec3(0.0)), vec3(0.4545));
+                // grano de película tropical
+                col += (hash(gl_FragCoord.xy + fract(u_time)*vec2(11.0,7.0)) - 0.5)*0.025;
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `;
+
+        // ============================================================
+        // SHADER 4 - Arrecife Tropical
+        // ============================================================
+        const shader4 = `
+            precision highp float;
+            uniform vec2 u_resolution;
+            uniform float u_time;
+            #define T (u_time * 0.5)
+            float hash(vec2 p){
+                p = fract(p*vec2(123.34, 345.45));
+                p += dot(p, p+34.345);
+                return fract(p.x*p.y);
+            }
+            float n2(vec2 p){
+                vec2 i = floor(p), f = fract(p);
+                f = f*f*(3.0-2.0*f);
+                return mix(mix(hash(i), hash(i+vec2(1.0,0.0)), f.x),
+                           mix(hash(i+vec2(0.0,1.0)), hash(i+vec2(1.0,1.0)), f.y), f.y);
+            }
+            float fbm(vec2 p){
+                float v = 0.0, a = 0.5;
+                for(int i=0;i<4;i++){
+                    v += a*n2(p);
+                    p = mat2(1.6,1.2,-1.2,1.6)*p;
+                    a *= 0.5;
+                }
+                return v;
+            }
+            // ---- Geometría del Pez -------------------------------------------------
+            float sdFish(vec3 p, float seed){
+                float swim = sin(T * 4.0 + seed * 10.0) * 0.3;
+                vec3 pBody = p;
+                pBody.x += swim * (p.z + 0.5);
+                float body = length(pBody * vec3(1.0, 1.5, 0.6)) - 0.4;
+                vec3 pTail = p;
+                pTail.x += swim * 1.5;
+                float tail = length(vec3(pTail.x, pTail.y, abs(pTail.z + 0.8))) - 0.2;
+                tail = max(tail, -pTail.z - 0.4);
+                return min(body, tail);
+            }
+            float scene(vec3 p){
+                float floorDist = p.y + 2.0 + fbm(p.xz * 0.1) * 0.5;
+                float fishDist = 100.0;
+                float s = 6.0;
+                vec3 q = vec3(mod(p.x + s*0.5, s) - s*0.5,
+                              mod(p.y + s*0.5, s) - s*0.5,
+                              mod(p.z - T * 3.0 + s*0.5, s) - s*0.5);
+
+                // Separamos el floor del hash
+                vec2 gridId = floor(p.xz / s);
+                float seed = hash(gridId);
+
+                vec3 offset = vec3(sin(seed*10.0), cos(seed*5.0), 0.0) * 2.0;
+                fishDist = sdFish(q - offset, seed);
+
+                return min(floorDist, fishDist);
+            }
+            vec3 norm(vec3 p){
+                vec2 e = vec2(0.01, 0.0);
+                return normalize(vec3(
+                    scene(p+e.xyy) - scene(p-e.xyy),
+                    scene(p+e.yxy) - scene(p-e.yxy),
+                    scene(p+e.yyx) - scene(p-e.yyx)
+                ));
+            }
+            vec2 march(vec3 ro, vec3 rd){
+                float t = 0.0;
+                for(int i=0;i<80;i++){
+                    float h = scene(ro + rd*t);
+                    if(h < 0.001 * t + 0.001) return vec2(t, 1.0);
+                    t += h;
+                    if(t > 40.0) break;
+                }
+                return vec2(t, -1.0);
+            }
+            float getCaustics(vec3 p){
+                vec2 uv = p.xz * 0.2;
+                float c = fbm(uv + T) + fbm(uv * 1.5 - T * 0.8);
+                return smoothstep(0.6, 0.8, c);
+            }
+            vec3 aces(vec3 x){
+                return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0);
+            }
+            void main(){
+                vec2 res = u_resolution;
+                vec2 uv = (gl_FragCoord.xy*2.0 - res)/min(res.x, res.y);
+                vec3 ro = vec3(sin(T*0.2)*2.0, 1.0 + sin(T*0.3)*0.5, T*2.0);
+                vec3 target = vec3(sin(T*0.2)*2.0, 1.0, T*2.0 + 5.0);
+                vec3 ww = normalize(target - ro);
+                vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
+                vec3 vv = cross(uu, ww);
+                vec3 rd = normalize(uv.x*uu + uv.y*vv + 2.0*ww);
+                vec2 hit = march(ro, rd);
+                vec3 col;
+                if(hit.y < 0.0){
+                    col = mix(vec3(0.0, 0.4, 0.7), vec3(0.4, 0.8, 1.0), max(0.0, rd.y));
+                } else {
+                    vec3 p = ro + rd*hit.x;
+                    vec3 n = norm(p);
+                    float distFloor = p.y + 2.0;
+
+                    if(distFloor < 1.0){
+                        vec3 sand = vec3(0.7, 0.6, 0.4);
+                        float caustics = getCaustics(p);
+                        col = sand + caustics * 0.4;
+                    } else {
+                        vec3 fishCol = vec3(1.0, 0.5, 0.1);
+                        float diff = clamp(dot(n, normalize(vec3(1,2,1))), 0.0, 1.0);
+                        col = fishCol * (diff + 0.3);
+                        col += pow(max(0.0, n.y), 10.0) * vec3(1.0, 1.0, 0.8);
+                    }
+                    float fog = 1.0 - exp(-hit.x * 0.12);
+                    col = mix(col, vec3(0.1, 0.6, 0.8), fog);
+                }
+                float rays = fbm(rd.xz * 0.5 + T * 0.1) * max(0.0, rd.y);
+                col += rays * vec3(0.7, 0.9, 1.0) * 0.5;
+                col = aces(col * 1.2);
+                col = pow(max(col, vec3(0.0)), vec3(0.4545));
+                col *= 1.0 - 0.3 * dot(uv, uv);
+
+                gl_FragColor = vec4(col, 1.0);
+            }
+        `;
+
+        // ============================================================
+        // Rotación cada 12 horas (sincronizada para todos los visitantes)
+        // ============================================================
+        const shaders = [shader1, shader2, shader3, shader4];
+        const HOURS_PER_BLOCK = 12;
+        const BLOCK_MS = HOURS_PER_BLOCK * 60 * 60 * 1000;
+
+        const blockIndex = Math.floor(Date.now() / BLOCK_MS);
+        const shaderIndex = blockIndex % shaders.length;
+        const selectedShader = shaders[shaderIndex];
+
+        // ============================================================
+        // Carga de glslCanvas y arranque del shader seleccionado
+        // ============================================================
         function loadShader() {
             const script = document.createElement('script');
             script.src = "https://cdn.jsdelivr.net/npm/glslCanvas@0.2.6/dist/GlslCanvas.min.js";
             script.onload = () => {
                 const canvas = document.getElementById('shader-canvas');
-
-                // Asegurar que el buffer de dibujo tenga la resolución real de la pantalla
                 canvas.width = window.innerWidth;
                 canvas.height = window.innerHeight;
 
-                // Instanciamos glslCanvas manualmente y le pasamos el shader
                 const sandbox = new GlslCanvas(canvas);
-                sandbox.load(fragmentShader);
+                sandbox.load(selectedShader);
 
-                // Reajustar resolución al cambiar el tamaño de la ventana
                 window.addEventListener('resize', () => {
                     canvas.width = window.innerWidth;
                     canvas.height = window.innerHeight;
