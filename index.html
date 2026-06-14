@@ -18,7 +18,7 @@
         // Rotación cada 5 minutos (sincronizada para todos los visitantes)
         // ============================================================
         const TOTAL_SHADERS = 10;
-        const MINUTES_PER_BLOCK = 5;
+        const seconds_PER_BLOCK = 20;
         const BLOCK_MS = MINUTES_PER_BLOCK * 60 * 1000;
 
         const blockIndex = Math.floor(Date.now() / BLOCK_MS);
