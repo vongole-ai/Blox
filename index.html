@@ -7,53 +7,72 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
         canvas { width: 100vw; height: 100vh; display: block; }
+        #error-msg { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                     color: #ff4444; font-family: monospace; display: none; text-align: center; }
     </style>
 </head>
 <body>
-
     <canvas id="shader-canvas"></canvas>
+    <div id="error-msg">Error cargando shader<br>Recarga la página</div>
 
     <script>
-        // ============================================================
-        // Rotación cada 5 minutos (sincronizada para todos los visitantes)
-        // ============================================================
         const TOTAL_SHADERS = 13;
         const MINUTES_PER_BLOCK = 5;
         const BLOCK_MS = MINUTES_PER_BLOCK * 60 * 1000;
 
         const blockIndex = Math.floor(Date.now() / BLOCK_MS);
-        const shaderNumber = (blockIndex % TOTAL_SHADERS) + 1; // 1..8
+        const shaderNumber = (blockIndex % TOTAL_SHADERS) + 1; // 1..13
         const shaderPath = `shaders/shader${shaderNumber}.glsl`;
 
-        // ============================================================
-        // Carga de glslCanvas + fetch del shader seleccionado
-        // ============================================================
         function loadShader() {
             const canvas = document.getElementById('shader-canvas');
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-
-            window.addEventListener('resize', () => {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-            });
+            const errorDiv = document.getElementById('error-msg');
+            
+            // WebGL check
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            if (!gl) {
+                errorDiv.innerHTML = 'WebGL no soportado';
+                errorDiv.style.display = 'block';
+                return;
+            }
 
             const glslScript = document.createElement('script');
             glslScript.src = "https://cdn.jsdelivr.net/npm/glslCanvas@0.2.6/dist/GlslCanvas.min.js";
+            
             glslScript.onload = () => {
                 fetch(shaderPath)
                     .then(res => {
-                        if (!res.ok) throw new Error('No se pudo cargar ' + shaderPath);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
                         return res.text();
                     })
                     .then(code => {
+                        if (!code.includes('void main')) throw new Error('Shader inválido');
+                        
                         const sandbox = new GlslCanvas(canvas);
                         sandbox.load(code);
+                        
+                        // Resize handler con notificación a GlslCanvas
+                        window.addEventListener('resize', () => {
+                            canvas.width = window.innerWidth;
+                            canvas.height = window.innerHeight;
+                            if (sandbox.resize) sandbox.resize();
+                        });
+                        
+                        // Trigger inicial
+                        window.dispatchEvent(new Event('resize'));
                     })
                     .catch(err => {
                         console.error(err);
+                        errorDiv.innerHTML = `Error: ${err.message}<br>Verifica que existe ${shaderPath}`;
+                        errorDiv.style.display = 'block';
                     });
             };
+            
+            glslScript.onerror = () => {
+                errorDiv.innerHTML = 'Error cargando GlslCanvas';
+                errorDiv.style.display = 'block';
+            };
+            
             document.body.appendChild(glslScript);
         }
 
