@@ -14,7 +14,7 @@
     #stage {
       position: fixed;
       inset: 0;
-      cursor: pointer;
+      cursor: none;
     }
     #c {
       position: absolute;
@@ -48,6 +48,11 @@
       let W = 0, H = 0, DPR = 1;
       let mush = [];
       let fish = [];
+      // caballito de mar (puntero)
+      let tx = 0, ty = 0;          // destino: posición del ratón
+      let sx = 0, sy = 0;          // posición actual del caballito
+      let sVis = 0, sTarget = 0;   // opacidad actual y objetivo
+      let sDir = 1;                // hacia dónde mira
       let last = performance.now(), time = 0, nextSpawn = 0, nextFish = 0;
 
       function resize(){
@@ -306,6 +311,88 @@
         ctx.restore();
       }
 
+      function drawSeahorse(x, y, dir, a){
+        const c = '#f8e0b8';                       // melocotón pastel
+        const edge = mix(c, '#6b5a7a', 0.22);      // contorno suave
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.translate(x, y);
+        ctx.scale(dir * 0.55, 0.55);               // dibujo base ~40 px
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // cuerpo en S que termina en cola enroscada
+        const body = new Path2D();
+        body.moveTo(-2, -8);
+        body.bezierCurveTo(-10, -2, 8, 4, 0, 14);
+        body.quadraticCurveTo(-3, 20, -7, 18);
+        body.quadraticCurveTo(-11, 16, -8, 12);
+
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 9;
+        ctx.stroke(body);
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 6;
+        ctx.stroke(body);
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.save();
+        ctx.translate(-1.5, 0);
+        ctx.stroke(body);
+        ctx.restore();
+
+        // hocico
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(1, -12);
+        ctx.lineTo(-7, -10);
+        ctx.stroke();
+        ctx.strokeStyle = c;
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+
+        // cabeza
+        ctx.fillStyle = edge;
+        ctx.beginPath();
+        ctx.arc(3, -14, 6.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.arc(3, -14, 5.6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // cresta de púas
+        ctx.fillStyle = c;
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-1, -17);
+        ctx.lineTo(0, -22);
+        ctx.lineTo(2, -18);
+        ctx.lineTo(4, -21);
+        ctx.lineTo(6, -17);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // ojo
+        ctx.fillStyle = '#2a2735';
+        ctx.beginPath();
+        ctx.arc(4.5, -15, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // aletas y escamas: puntos pálidos a lo largo del lomo
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        for (const [px, py] of [[3, -4], [5, 0], [4, 4], [2, 8]]){
+          ctx.beginPath();
+          ctx.arc(px, py, 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
       function frame(now){
         time += Math.min(now - last, 50);
         last = now;
@@ -331,6 +418,13 @@
           else drawMush(it);
         }
 
+        // caballito de mar: sigue al ratón con suavidad
+        sx += (tx - sx) * 0.12;
+        sy += (ty - sy) * 0.12;
+        sVis += (sTarget - sVis) * 0.12;
+        if (Math.abs(tx - sx) > 0.5) sDir += ((tx > sx ? 1 : -1) - sDir) * 0.08;
+        if (sVis > 0.01) drawSeahorse(sx, sy, sDir, sVis);
+
         requestAnimationFrame(frame);
       }
 
@@ -338,6 +432,15 @@
         const r = stage.getBoundingClientRect();
         spawn(e.clientX - r.left, -30);
       });
+
+      stage.addEventListener('pointermove', e => {
+        const r = stage.getBoundingClientRect();
+        tx = e.clientX - r.left;
+        ty = e.clientY - r.top;
+        if (sVis < 0.01){ sx = tx; sy = ty; }   // aparece donde está el ratón
+        sTarget = 1;
+      });
+      stage.addEventListener('pointerleave', () => { sTarget = 0; });
 
       if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
       window.addEventListener('resize', resize);
