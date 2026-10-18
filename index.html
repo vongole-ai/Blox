@@ -37,14 +37,18 @@
       const ctx = cvs.getContext('2d');
 
       const BG = '#14131a';
-      // paleta pastel
+      // paleta pastel: honguitos
       const PALETTE = ['#f3c9d8','#dcc8f2','#c3ddf3','#c7eedb','#f8e0b8','#f5d3cb','#e2dbf8','#d0ebe6'];
+      // paleta pastel: peces
+      const FISH_PALETTE = ['#f7a8c4','#b9a3e8','#8fd0e8','#9fdcb8','#f6c27f','#f39f9f','#a8c8f0'];
       const MAX = 140;
+      const FISH_MAX = 24;
       const G = 0.035;
 
       let W = 0, H = 0, DPR = 1;
       let mush = [];
-      let last = performance.now(), time = 0, nextSpawn = 0;
+      let fish = [];
+      let last = performance.now(), time = 0, nextSpawn = 0, nextFish = 0;
 
       function resize(){
         const r = stage.getBoundingClientRect();
@@ -86,6 +90,7 @@
         const z = Math.random();                              // profundidad: 0 lejos, 1 cerca
         const r = 5 + Math.pow(Math.random(), 1.9) * 40;      // mayoría chicos, algunos grandes
         mush.push({
+          kind: 'mush',
           x: x != null ? x : rnd(20, W - 20),
           y: y != null ? y : -r * 2 - 20,
           vx: rnd(-0.15, 0.15),
@@ -98,6 +103,25 @@
           vr: rnd(-0.005, 0.005),
           color: pick(PALETTE),
           spots: makeSpots(r),
+          seed: Math.random() * 100
+        });
+      }
+
+      function spawnFish(x){
+        if (fish.length >= FISH_MAX) return;
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        const z = Math.random();
+        const s = 6 + Math.pow(Math.random(), 1.6) * 26;      // tamaños variados
+        const speed = (0.25 + 0.6 * z) * rnd(0.8, 1.2);
+        fish.push({
+          kind: 'fish',
+          x: x != null ? x : (dir > 0 ? -s * 3 : W + s * 3),
+          y: rnd(0.08 * H, 0.92 * H),
+          vx: dir * speed,
+          s: s,
+          z: z,
+          alpha: 0.5 + 0.45 * z,
+          color: pick(FISH_PALETTE),
           seed: Math.random() * 100
         });
       }
@@ -148,6 +172,16 @@
             }
           }
         }
+
+        // peces: nadan en horizontal con un ligero vaivén, sin gravedad
+        for (const f of fish){
+          f.x += f.vx;
+          f.y += Math.sin(time * 0.0009 + f.seed) * 0.12;
+          f.y = Math.max(0.05 * H, Math.min(0.95 * H, f.y));
+        }
+        fish = fish.filter(f =>
+          (f.vx > 0 ? f.x < W + f.s * 4 : f.x > -f.s * 4)
+        );
       }
 
       function drawMush(m){
@@ -205,6 +239,73 @@
         ctx.restore();
       }
 
+      function drawFish(f){
+        const s = f.s;
+        const dir = f.vx >= 0 ? 1 : -1;
+        ctx.save();
+        ctx.globalAlpha = f.alpha;
+        ctx.translate(f.x, f.y);
+        ctx.scale(dir, 1);                                    // mira hacia donde nada
+        ctx.rotate(Math.sin(time * 0.0009 + f.seed) * 0.05);  // inclinación suave
+
+        // cola: se mueve con el nado
+        const wob = Math.sin(time * 0.008 + f.seed) * 0.35;
+        ctx.save();
+        ctx.translate(-s * 0.8, 0);
+        ctx.rotate(wob);
+        ctx.fillStyle = mix(f.color, '#ffffff', 0.2);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(-s * 0.4, -s * 0.5, -s * 0.8, -s * 0.65);
+        ctx.quadraticCurveTo(-s * 0.55, 0, -s * 0.8, s * 0.65);
+        ctx.quadraticCurveTo(-s * 0.4, s * 0.5, 0, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // aleta dorsal
+        ctx.fillStyle = mix(f.color, '#ffffff', 0.15);
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.2, -s * 0.45);
+        ctx.quadraticCurveTo(s * 0.05, -s * 0.9, s * 0.25, -s * 0.45);
+        ctx.closePath();
+        ctx.fill();
+
+        // cuerpo
+        const gBody = ctx.createRadialGradient(s * 0.2, -s * 0.2, s * 0.05, 0, 0, s * 1.1);
+        gBody.addColorStop(0, mix(f.color, '#ffffff', 0.5));
+        gBody.addColorStop(0.7, f.color);
+        gBody.addColorStop(1, mix(f.color, '#6b5a7a', 0.12));
+        ctx.fillStyle = gBody;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s, s * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // brillo sobre el lomo
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(-s * 0.1, -s * 0.25, s * 0.45, s * 0.12, -0.1, 0, Math.PI * 2);
+        ctx.fill();
+
+        // aleta pectoral
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(s * 0.1, s * 0.18, s * 0.22, s * 0.1, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ojo
+        ctx.fillStyle = '#fbf7f1';
+        ctx.beginPath();
+        ctx.arc(s * 0.5, -s * 0.1, Math.max(1, s * 0.13), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#2a2735';
+        ctx.beginPath();
+        ctx.arc(s * 0.54, -s * 0.1, Math.max(0.6, s * 0.06), 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
       function frame(now){
         time += Math.min(now - last, 50);
         last = now;
@@ -213,15 +314,22 @@
           spawn();
           nextSpawn = now + rnd(1400, 2600);
         }
+        if (now >= nextFish){
+          spawnFish();
+          nextFish = now + rnd(1800, 3600);
+        }
 
         ctx.fillStyle = BG;
         ctx.fillRect(0, 0, W, H);
 
         physics();
 
-        // los lejanos se dibujan primero
-        const ordered = mush.slice().sort((a, b) => a.z - b.z);
-        for (const m of ordered) drawMush(m);
+        // honguitos y peces juntos, los lejanos primero
+        const items = mush.concat(fish).sort((a, b) => a.z - b.z);
+        for (const it of items){
+          if (it.kind === 'fish') drawFish(it);
+          else drawMush(it);
+        }
 
         requestAnimationFrame(frame);
       }
@@ -236,7 +344,10 @@
 
       resize();
       for (let i = 0; i < 14; i++) spawn(rnd(20, W - 20), rnd(0, H));
-      nextSpawn = performance.now() + 1000;
+      for (let i = 0; i < 6; i++) spawnFish(rnd(0, W));
+      const t0 = performance.now();
+      nextSpawn = t0 + 1000;
+      nextFish = t0 + 1500;
       requestAnimationFrame(frame);
     })();
   </script>
