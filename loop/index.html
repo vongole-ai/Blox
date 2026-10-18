@@ -183,7 +183,7 @@ body.idle .play-text { opacity: 0; }
   let W = 0, H = 0, DPR = 1, dirty = true;
   let cx = 0, cy = 0, s = 1, s0 = 1, targetS = null, anchor = {x:0,y:0}, tween = null;
   let playing = !reduceMotion, driftDir = {x:0,y:1,name:'down'}, vx = 0, vy = 0, dragging = false;
-  let photos = [], cols = [], showing = false;
+  let photos = [], cols = [], showing = false, savedView = null;
   const colours = new Set();
 
   const mod = (a,n) => ((a%n)+n)%n;
@@ -296,12 +296,18 @@ body.idle .play-text { opacity: 0; }
   const DIRS = {left:{x:-1,y:0}, right:{x:1,y:0}, up:{x:0,y:-1}, down:{x:0,y:1}};
   function move(name) { const d = DIRS[name]; driftDir = {x:d.x, y:d.y, name}; panBy(d.x*W*0.45, d.y*H*0.45); syncDrift(); wake(); }
   function focusRect(r) {
+    if (savedView) {                      // already zoomed in → return to the exact prior view and resume
+      const sv = savedView; savedView = null;
+      startTween({cx:sv.cx, cy:sv.cy, ls:sv.ls}, 800);
+      setDrift(sv.playing);               // drift picks up again after the tween, from where it was
+      return;
+    }
+    savedView = {cx, cy, ls:Math.log(s), playing};   // remember position, zoom and whether it was drifting
+    setDrift(false);
     const rcx = r.x+r.w/2, rcy = r.y+r.h/2, ts = clampS(Math.min(W*0.88/r.w, H*0.84/r.h));
-    const focused = s > ts*0.85 && Math.abs(cx-rcx) < r.w*0.12 && Math.abs(cy-rcy) < r.h*0.12;
-    if (focused) startTween({cx:rcx, cy:rcy, ls:Math.log(s0)}, 800);
-    else { setDrift(false); startTween({cx:rcx, cy:rcy, ls:Math.log(ts)}, 850); }
+    startTween({cx:rcx, cy:rcy, ls:Math.log(ts)}, 850);
   }
-  function resetView() { startTween({cx:0, cy:0, ls:Math.log(s0)}, 900); }
+  function resetView() { savedView = null; startTween({cx:0, cy:0, ls:Math.log(s0)}, 900); }
 
   let last = performance.now();
   function frame(now) {
