@@ -161,7 +161,7 @@ body.idle .pad { opacity: 0; transform: translate(-50%, 10px); }
       img.decoding = 'async';
       img.onload = () => { active--; if (job.kind === 'thumb') job.e.thumb = img; else job.e.full = img; dirty = true; pump(); };
       img.onerror = () => { active--; if (job.kind === 'thumb') job.e.lt = false; else job.e.lf = false; pump(); };
-      img.src = 'photos/' + job.kind + '/' + job.id + '.webp';
+      img.src = '/loop/photos/' + job.kind + '/' + job.id + '.webp';
     }
   }
 
@@ -371,7 +371,7 @@ body.idle .pad { opacity: 0; transform: translate(-50%, 10px); }
   async function start() {
     addEventListener('resize', resize); resize();
     try {
-      const data = await (await fetch('photos.json', {cache:'no-store'})).json();
+      const data = await (await fetch('/loop/photos.json', {cache:'no-store'})).json();
       photos = data.photos || [];
       window.__cats = data.categories || [];
       window.__cols = data.colours || [];
