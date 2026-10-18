@@ -76,7 +76,8 @@ body.idle .pad { opacity: 0; transform: translate(-50%, 10px); }
 /* ---- slideshow (projection) ---- */
 .show { position: fixed; inset: 0; background: #000; z-index: 40; }
 .show .slide { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
-  opacity: 0; transition: opacity 2000ms cubic-bezier(.4,0,.2,1); }
+  opacity: 0; transition: opacity 2000ms cubic-bezier(.4,0,.2,1);
+  filter: brightness(0.95) contrast(0.94) saturate(0.97); }
 .show .slide.vis { opacity: 1; }
 .show-ui { position: absolute; inset: 0; pointer-events: none; transition: opacity .5s ease; }
 .show.hud-off .show-ui { opacity: 0; }
@@ -159,6 +160,7 @@ body.idle .pad { opacity: 0; transform: translate(-50%, 10px); }
   const COL = 240, GAP = 10, STEP = COL + GAP, C = 18;
   const SPEED = 24, MAXCACHE = 420;
   const HOLD = 7000, FADE = 2000;   // slideshow timing
+  const GRADE = 'brightness(0.95) contrast(0.94) saturate(0.97)';   // subtle global grade
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const cv = document.getElementById('stage'), ctx = cv.getContext('2d');
@@ -231,9 +233,11 @@ body.idle .pad { opacity: 0; transform: translate(-50%, 10px); }
   }
   function draw() {
     ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.filter = 'none';
     ctx.fillStyle = '#111110'; ctx.fillRect(0,0,W,H);
     if (!cols.length) return;
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.filter = GRADE;
     const flt = anyFilter();
     const left = cx - W/2/s, right = cx + W/2/s, top = cy - H/2/s, bottom = cy + H/2/s;
     const k0 = Math.floor(left/STEP)-1, k1 = Math.floor(right/STEP)+1, sw = COL*s;
@@ -258,7 +262,7 @@ body.idle .pad { opacity: 0; transform: translate(-50%, 10px); }
         i++;
       }
     }
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = 1; ctx.filter = 'none';
   }
   function hitTest(px, py) {
     const wx = cx + (px-W/2)/s, wy = cy + (py-H/2)/s, k = Math.floor(wx/STEP);
