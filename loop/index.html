@@ -10,158 +10,85 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap">
 <style>
-/* Layout: one infinite 2D plane of photo columns, drawn on a canvas; a single floating control pill at the bottom. Single dark look by design. */
 :root {
-  --bg: #111110;
-  --panel: #181816;
-  --glass: rgba(24, 24, 22, 0.82);
-  --hover: #23221f;
-  --line: #2c2b28;
-  --fg: #ece6da;
-  --muted: #8f897f;
-  --cream: #e8e2d6;
-  --ink: #151513;
-  --veil: rgba(17, 17, 16, 0.86);
-  --shadow: rgba(0, 0, 0, 0.5);
-  --serif: 'Instrument Serif', 'Iowan Old Style', 'Times New Roman', serif;
-  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --bg: #111110; --panel: #181816; --glass: rgba(24,24,22,0.86); --hover: #23221f;
+  --line: #2c2b28; --fg: #ece6da; --muted: #8f897f; --cream: #e8e2d6; --ink: #151513;
+  --veil: rgba(17,17,16,0.86); --shadow: rgba(0,0,0,0.5);
+  --serif: 'Instrument Serif','Iowan Old Style','Times New Roman',serif;
+  --mono: 'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
   color-scheme: dark;
 }
-html, body { height: 100%; }
-html { color-scheme: dark; }
-body { margin: 0; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--mono); overflow: hidden; -webkit-font-smoothing: antialiased; }
 [hidden] { display: none !important; }
-body {
-  background: var(--bg);
-  color: var(--fg);
-  font-family: var(--mono);
-  overflow: hidden;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  -webkit-font-smoothing: antialiased;
-}
-#stage {
-  position: fixed; inset: 0; display: block;
-  touch-action: none; cursor: grab;
-}
+#stage { position: fixed; inset: 0; display: block; touch-action: none; cursor: grab; }
 #stage.dragging { cursor: grabbing; }
 body.idle #stage { cursor: none; }
-.vignette {
-  position: fixed; inset: 0; pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 58%, var(--veil) 100%);
-}
+.vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 60%, var(--veil) 100%); }
 
-.toast {
-  position: fixed; left: 50%;
-  bottom: calc(112px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  max-width: calc(100vw - 32px); box-sizing: border-box;
-  padding: 8px 16px; border-radius: 999px;
-  background: var(--glass); border: 1px solid var(--line);
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-  font-size: 10.5px; line-height: 1.5; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--muted); text-align: center;
-  pointer-events: none;
-}
+.boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); transition: opacity .5s ease; z-index: 30; }
+.boot.gone { opacity: 0; pointer-events: none; }
+.boot span { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
 
-.pad {
-  position: fixed; left: 50%;
-  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  display: flex; align-items: center; gap: 2px;
-  padding: 8px; border-radius: 999px;
-  background: var(--glass);
-  border: 1px solid var(--line);
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-  box-shadow: 0 24px 60px var(--shadow);
-  transition: opacity .6s ease, transform .6s ease;
-}
-.pad button {
-  width: 48px; height: 48px; border-radius: 50%;
-  border: 0; background: transparent; color: var(--muted);
-  display: grid; place-items: center; cursor: pointer; padding: 0;
-  transition: color .2s ease, background-color .2s ease;
-}
+.pad { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom,0px)); transform: translateX(-50%);
+  display: flex; align-items: center; gap: 2px; padding: 8px; border-radius: 999px; background: var(--glass);
+  border: 1px solid var(--line); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  box-shadow: 0 24px 60px var(--shadow); transition: opacity .6s ease, transform .6s ease; z-index: 20; }
+.pad button { width: 48px; height: 48px; border-radius: 50%; border: 0; background: transparent; color: var(--muted);
+  display: grid; place-items: center; cursor: pointer; padding: 0; transition: color .2s, background-color .2s; }
 .pad button:hover { color: var(--fg); background: var(--hover); }
-.pad button:focus-visible, .help button:focus-visible { outline: 1px solid var(--fg); outline-offset: 2px; }
 .pad button.on { color: var(--fg); }
+.pad button:focus-visible, .panel button:focus-visible { outline: 1px solid var(--fg); outline-offset: 2px; }
 .pad .play { width: 56px; height: 56px; background: var(--cream); color: var(--ink); margin-right: 6px; }
 .pad .play:hover { background: var(--fg); color: var(--ink); }
 .pad .group { display: flex; align-items: center; gap: 2px; }
 .pad .sep { width: 1px; height: 24px; background: var(--line); margin: 0 8px; }
+.pad .filter-btn { position: relative; }
+.pad .filter-btn .dot { position: absolute; top: 10px; right: 10px; width: 6px; height: 6px; border-radius: 50%; background: var(--cream); }
 .pad svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .pad .play svg { width: 18px; height: 18px; }
-
 body.idle .pad { opacity: 0; transform: translate(-50%, 10px); }
 
-.help {
-  position: fixed; left: 50%;
-  bottom: calc(112px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%);
-  width: min(380px, calc(100vw - 32px)); box-sizing: border-box;
-  padding: 22px 22px 20px; border-radius: 18px;
-  background: var(--panel); border: 1px solid var(--line);
-  box-shadow: 0 30px 80px var(--shadow);
-  display: flex; flex-direction: column; gap: 16px;
-}
-.help h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 26px; line-height: 1.1; }
-.help dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 9px 18px; align-items: baseline; }
-.help dt { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
-.help dd { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--fg); }
-.help .try {
-  height: 44px; border-radius: 999px; border: 1px solid var(--line);
-  background: transparent; color: var(--fg); font: inherit; font-size: 12px;
-  letter-spacing: 0.08em; cursor: pointer; transition: background-color .2s ease;
-}
-.help .try:hover { background: var(--hover); }
-.help .note { margin: -6px 0 0; font-size: 11px; line-height: 1.5; color: var(--muted); text-align: center; }
-
-.drop {
-  position: fixed; inset: 0; background: var(--veil);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  display: grid; place-items: center; pointer-events: none;
-}
-.drop .frame {
-  position: absolute; inset: 24px; border: 1px dashed var(--muted); border-radius: 20px;
-}
-.drop .msg { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding-inline: 24px; }
-.drop strong { font-family: var(--serif); font-weight: 400; font-style: italic; font-size: clamp(36px, 7vw, 64px); line-height: 1; }
-.drop span { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
-
-.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.panel { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom,0px)); transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px)); box-sizing: border-box; padding: 20px; border-radius: 18px;
+  background: var(--panel); border: 1px solid var(--line); box-shadow: 0 30px 80px var(--shadow);
+  display: flex; flex-direction: column; gap: 18px; z-index: 21; max-height: 70vh; overflow-y: auto; }
+.panel .row { display: flex; justify-content: space-between; align-items: baseline; }
+.panel h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 24px; }
+.panel .count { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.panel h3 { margin: 0 0 10px; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; color: var(--fg); font: inherit; font-size: 12px;
+  cursor: pointer; transition: background-color .15s, border-color .15s; text-transform: capitalize; }
+.chip:hover { background: var(--hover); }
+.chip.on { background: var(--cream); color: var(--ink); border-color: var(--cream); }
+.chip .sw { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.25); }
+.chip.on .sw { border-color: rgba(0,0,0,0.25); }
+.panel .reset { align-self: flex-start; min-height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: transparent; color: var(--muted); font: inherit; font-size: 11px; letter-spacing: 0.08em; cursor: pointer; }
+.panel .reset:hover { background: var(--hover); color: var(--fg); }
+.panel .help { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; }
 
 @media (max-width: 640px) {
   .pad .arrows, .pad .sep.first { display: none; }
   .pad button { width: 44px; height: 44px; }
   .pad .play { width: 52px; height: 52px; }
-  .help, .toast { bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
 }
-@media (prefers-reduced-motion: reduce) {
-  .pad { transition: none; }
-}
+@media (prefers-reduced-motion: reduce) { .pad { transition: none; } }
 </style>
 </head>
 <body>
-<canvas id="stage" role="img" aria-label="Infinite photo mosaic. Use the arrow keys to move and the plus and minus keys to zoom."></canvas>
+<canvas id="stage" role="img" aria-label="Infinite photo mosaic. Drag to move, scroll to zoom, click a photo to open it."></canvas>
 <div class="vignette" aria-hidden="true"></div>
+<div class="boot" id="boot"><span id="boot-msg">Loading</span></div>
 
-<div class="toast" id="status" role="status" aria-live="polite" hidden></div>
-
-<div class="help" id="help" hidden role="dialog" aria-labelledby="help-title">
-  <h2 id="help-title">How to move around</h2>
-  <dl>
-    <dt>Scroll wheel</dt><dd>Zoom in and out where the cursor is</dd>
-    <dt>Drag</dt><dd>Move the canvas in any direction</dd>
-    <dt>Click</dt><dd>Go to a photo. Click again to go back</dd>
-    <dt>Arrows</dt><dd>Move and change the drift direction</dd>
-    <dt>Space</dt><dd>Pause or resume the drift</dd>
-    <dt>+ / −</dt><dd>Zoom from the center</dd>
-    <dt>0</dt><dd>Back to the starting view</dd>
-  </dl>
-  <button class="try" id="try" type="button">Try it with your photos</button>
-  <p class="note">You can also drag them onto the page. They stay in your browser; nothing is uploaded.</p>
-  <label for="files" class="visually-hidden">Choose photos</label>
-  <input id="files" type="file" accept="image/*" multiple hidden>
+<div class="panel" id="panel" hidden role="dialog" aria-label="Filters">
+  <div class="row"><h2>Filters</h2><span class="count" id="count"></span></div>
+  <div><h3>Subject</h3><div class="chips" id="subjects"></div></div>
+  <div><h3>Colour</h3><div class="chips" id="colours"></div></div>
+  <button class="reset" id="clear" type="button">Clear all</button>
+  <p class="help">Scroll to zoom · drag to move · click a photo to open it · space pauses the drift</p>
 </div>
 
 <div class="pad" id="pad" role="toolbar" aria-label="Canvas controls">
@@ -182,467 +109,285 @@ body.idle .pad { opacity: 0; transform: translate(-50%, 10px); }
   <span class="sep" aria-hidden="true"></span>
   <div class="group">
     <button type="button" id="reset" aria-label="Back to the starting view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3.2h3.2"></path></svg></button>
-    <button type="button" id="helpbtn" aria-label="Help" aria-expanded="false" aria-controls="help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M9.7 9.4a2.4 2.4 0 0 1 4.6.9c0 1.6-2.3 2.1-2.3 3.5"></path><path d="M12 16.9v.1"></path></svg></button>
+    <button type="button" id="filterbtn" class="filter-btn" aria-label="Filters" aria-expanded="false" aria-controls="panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h17M6.5 12h11M10 18.5h4"></path></svg><span class="dot" id="fdot" hidden></span></button>
   </div>
-</div>
-
-<div class="drop" id="drop" hidden>
-  <div class="frame" aria-hidden="true"></div>
-  <div class="msg"><strong>Drop your photos</strong><span>They stay in this browser</span></div>
 </div>
 
 <script>
 (() => {
   'use strict';
   const COL = 240, GAP = 10, STEP = COL + GAP, C = 18;
-  const SPEED = 24; // screen px per second while drifting
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const SPEED = 24, MAXCACHE = 420;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const cv = document.getElementById('stage');
-  const ctx = cv.getContext('2d');
-  const statusEl = document.getElementById('status');
-  const playBtn = document.getElementById('play');
-  const playIcon = document.getElementById('play-icon');
-  const help = document.getElementById('help');
-  const helpBtn = document.getElementById('helpbtn');
-  const pad = document.getElementById('pad');
-  const fileInput = document.getElementById('files');
-  const drop = document.getElementById('drop');
+  const cv = document.getElementById('stage'), ctx = cv.getContext('2d');
+  const boot = document.getElementById('boot'), bootMsg = document.getElementById('boot-msg');
+  const playBtn = document.getElementById('play'), playIcon = document.getElementById('play-icon');
+  const panel = document.getElementById('panel'), filterBtn = document.getElementById('filterbtn'), fdot = document.getElementById('fdot');
+  const pad = document.getElementById('pad'), countEl = document.getElementById('count');
   const dirBtns = [...document.querySelectorAll('[data-dir]')];
 
   let W = 0, H = 0, DPR = 1, dirty = true;
-  let cx = 0, cy = 0, s = 1, s0 = 1;
-  let targetS = null, anchor = { x: 0, y: 0 };
-  let tween = null;
-  let playing = !reduceMotion;
-  let driftDir = { x: 0, y: 1, name: 'down' };
-  let vx = 0, vy = 0, dragging = false;
-  let photos = [], cols = [], usingSamples = true, uid = 0;
+  let cx = 0, cy = 0, s = 1, s0 = 1, targetS = null, anchor = {x:0,y:0}, tween = null;
+  let playing = !reduceMotion, driftDir = {x:0,y:1,name:'down'}, vx = 0, vy = 0, dragging = false;
+  let photos = [], cols = [];
+  const subjects = new Set(), colours = new Set();
 
-  // ---------- helpers ----------
-  const mod = (a, n) => ((a % n) + n) % n;
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  const phase = (k) => { const x = Math.sin(k * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-  function rng(seed) {
-    return () => {
-      seed = (seed + 0x6D2B79F5) | 0;
-      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
-  const minS = () => W / (40 * STEP);
-  const maxS = () => (Math.max(W, H * 1.5) / COL) * 0.98;
+  const mod = (a,n) => ((a%n)+n)%n;
+  const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+  const ease = (t) => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+  const phase = (k) => { const x = Math.sin(k*127.1+311.7)*43758.5453; return x - Math.floor(x); };
+  const minS = () => W / (40*STEP);
+  const maxS = () => (Math.max(W, H*1.5)/COL) * 0.98;
   const clampS = (v) => clamp(v, minS(), maxS());
 
-  // ---------- sample photos (procedural stand-ins) ----------
-  const RATIOS = [3 / 2, 3 / 2, 3 / 2, 2 / 3, 2 / 3, 2 / 3, 4 / 3, 4 / 3, 3 / 4, 3 / 4, 1];
-  const SCENES = [
-    ['#7f97a8', '#d8cdb8', '#6f5e4a', '#2e261e'],
-    ['#2d3a52', '#6a6f86', '#1c2230', '#0b0e14'],
-    ['#9fb7c0', '#e3ddd0', '#5d8a96', '#1d3a42'],
-    ['#c7a27a', '#efd9b4', '#8a6748', '#3b2a1c'],
-    ['#b9bec0', '#dcdedb', '#7b8285', '#3d4244'],
-    ['#5b6e85', '#a7a9a6', '#3f4c3c', '#1b2119'],
-    ['#c49a92', '#ead2c4', '#7a5a52', '#3a2a27'],
-    ['#8d8a62', '#cfc7a0', '#5a5638', '#26251a'],
-    ['#4a4744', '#8b847a', '#2b2926', '#121110'],
-    ['#a4b4b9', '#f0e8da', '#c9b493', '#7d6a52']
-  ];
-  function makeSample(r) {
-    const ar = RATIOS[Math.floor(r() * RATIOS.length)];
-    const long = 480;
-    const w = ar >= 1 ? long : Math.round(long * ar);
-    const h = ar >= 1 ? Math.round(long / ar) : long;
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const g = c.getContext('2d');
-    const sc = SCENES[Math.floor(r() * SCENES.length)];
-    const hz = h * (0.35 + r() * 0.35);
-    let gr = g.createLinearGradient(0, 0, 0, hz);
-    gr.addColorStop(0, sc[0]); gr.addColorStop(1, sc[1]);
-    g.fillStyle = gr; g.fillRect(0, 0, w, hz + 2);
-    if (r() < 0.55) {
-      const sx = w * (0.15 + r() * 0.7), sy = hz * (0.3 + r() * 0.6), sr = Math.min(w, h) * (0.08 + r() * 0.12);
-      const rg = g.createRadialGradient(sx, sy, 0, sx, sy, sr * 3);
-      rg.addColorStop(0, 'rgba(255,244,222,0.75)');
-      rg.addColorStop(0.3, 'rgba(255,244,222,0.22)');
-      rg.addColorStop(1, 'rgba(255,244,222,0)');
-      g.fillStyle = rg; g.fillRect(0, 0, w, hz + 2);
-    }
-    gr = g.createLinearGradient(0, hz, 0, h);
-    gr.addColorStop(0, sc[2]); gr.addColorStop(1, sc[3]);
-    g.fillStyle = gr;
-    g.beginPath(); g.moveTo(0, h); g.lineTo(0, hz);
-    const rough = r() < 0.5 ? h * 0.08 : h * 0.015;
-    for (let i = 1; i <= 12; i++) g.lineTo(w * i / 12, hz + (r() - 0.5) * rough * 2);
-    g.lineTo(w, h); g.closePath(); g.fill();
-    g.globalAlpha = 0.05;
-    for (let i = 0; i < 900; i++) { g.fillStyle = r() < 0.5 ? '#000' : '#fff'; g.fillRect(r() * w, r() * h, 1.2, 1.2); }
-    g.globalAlpha = 1;
-    return { id: 's' + (uid++), src: c, ar: w / h, long, file: null };
+  // ---- image cache (LRU) ----
+  const cache = new Map();   // id -> {thumb, full}
+  const q = [], MAXP = 10; let active = 0;
+  function get(id) { const v = cache.get(id); if (v) { cache.delete(id); cache.set(id, v); } return v; }
+  function want(id, kind) {
+    let e = cache.get(id);
+    if (!e) { e = {thumb:null, full:null, lt:false, lf:false}; cache.set(id, e); }
+    else { cache.delete(id); cache.set(id, e); }
+    if (kind === 'thumb' && !e.thumb && !e.lt) { e.lt = true; q.push({id, kind, e}); pump(); }
+    if (kind === 'full' && !e.full && !e.lf) { e.lf = true; q.push({id, kind, e}); pump(); }
+    while (cache.size > MAXCACHE) { const k = cache.keys().next().value; if (k === id) break; cache.delete(k); }
+    return e;
   }
-  function loadSamples() {
-    const r = rng(42);
-    photos = [];
-    for (let i = 0; i < 72; i++) photos.push(makeSample(r));
-    usingSamples = true;
-    layout();
+  function pump() {
+    while (active < MAXP && q.length) {
+      const job = q.shift(); active++;
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => { active--; if (job.kind === 'thumb') job.e.thumb = img; else job.e.full = img; dirty = true; pump(); };
+      img.onerror = () => { active--; if (job.kind === 'thumb') job.e.lt = false; else job.e.lf = false; pump(); };
+      img.src = 'photos/' + job.kind + '/' + job.id + '.webp';
+    }
   }
 
-  // ---------- layout: C periodic columns, repeated forever in both axes ----------
-  function shuffled(n, seed) {
-    const r = rng(seed), a = [...Array(n).keys()];
-    for (let i = n - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-    return a;
+  // ---- filter matching ----
+  function matches(p) {
+    if (subjects.size && !p.tags.some(t => subjects.has(t))) return false;
+    if (colours.size && !colours.has(p.colour)) return false;
+    return true;
   }
+  const anyFilter = () => subjects.size || colours.size;
+
+  // ---- layout: C periodic columns tiled forever ----
   function layout() {
-    const N = photos.length;
-    cols = [];
+    const N = photos.length; cols = [];
     for (let c = 0; c < C; c++) {
-      let list = [];
-      if (N >= C * 4) { for (let i = c; i < N; i += C) list.push(i); }
-      else if (N > 0) list = shuffled(N, c * 97 + 13);
+      const list = [];
+      for (let i = c; i < N; i += C) list.push(i);
       let y = 0;
-      const items = list.map((p) => { const h = COL / photos[p].ar; const it = { p, y, h }; y += h + GAP; return it; });
-      cols.push({ items, period: y });
+      const items = list.map((p) => { const h = COL / photos[p].ratio; const it = {p, y, h}; y += h + GAP; return it; });
+      cols.push({items, period: y});
     }
     dirty = true;
   }
-  function firstAt(items, v) { // last item whose top <= v
-    let lo = 0, hi = items.length - 1, ans = 0;
-    while (lo <= hi) { const m = (lo + hi) >> 1; if (items[m].y <= v) { ans = m; lo = m + 1; } else hi = m - 1; }
-    return ans;
-  }
+  function firstAt(items, v) { let lo=0, hi=items.length-1, ans=0; while (lo<=hi){const m=(lo+hi)>>1; if(items[m].y<=v){ans=m;lo=m+1;}else hi=m-1;} return ans; }
 
-  // ---------- full-resolution cache for close zoom (your own photos) ----------
-  const fullCache = new Map(), pending = new Set();
-  function getFull(ph) {
-    if (!ph.file) return null;
-    if (fullCache.has(ph.id)) { const v = fullCache.get(ph.id); fullCache.delete(ph.id); fullCache.set(ph.id, v); return v; }
-    if (pending.has(ph.id)) return null;
-    pending.add(ph.id);
-    decode(ph.file, 2400).then((img) => {
-      fullCache.set(ph.id, img);
-      while (fullCache.size > 10) {
-        const k = fullCache.keys().next().value, old = fullCache.get(k);
-        if (old && old.close) old.close();
-        fullCache.delete(k);
-      }
-      pending.delete(ph.id); dirty = true;
-    }).catch(() => pending.delete(ph.id));
-    return null;
-  }
-  async function decode(file, maxLong) {
-    const bmp = await createImageBitmap(file);
-    let src = bmp, w = bmp.width, h = bmp.height;
-    if (Math.max(w, h) <= maxLong) return bmp;
-    while (Math.max(w, h) > maxLong * 2) { // step down for cleaner thumbnails
-      const c = document.createElement('canvas');
-      c.width = Math.round(w / 2); c.height = Math.round(h / 2);
-      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
-      if (src.close) src.close();
-      src = c; w = c.width; h = c.height;
-    }
-    const k = maxLong / Math.max(w, h);
-    const out = document.createElement('canvas');
-    out.width = Math.round(w * k); out.height = Math.round(h * k);
-    const g = out.getContext('2d');
-    g.imageSmoothingQuality = 'high';
-    g.drawImage(src, 0, 0, out.width, out.height);
-    if (src.close) src.close();
-    return out;
-  }
-
-  // ---------- drawing ----------
   function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-    W = window.innerWidth; H = window.innerHeight;
-    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-    cv.style.width = W + 'px'; cv.style.height = H + 'px';
-    s0 = W / ((W < 640 ? 3 : 8) * STEP);
-    s = clampS(s || s0);
-    dirty = true;
+    DPR = Math.min(devicePixelRatio||1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+    cv.style.width = W+'px'; cv.style.height = H+'px';
+    s0 = W / ((W<640?3:8)*STEP); s = clampS(s||s0); dirty = true;
   }
   function draw() {
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.fillStyle = '#111110';
-    ctx.fillRect(0, 0, W, H);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.fillStyle = '#111110'; ctx.fillRect(0,0,W,H);
     if (!cols.length) return;
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    const left = cx - W / 2 / s, right = cx + W / 2 / s;
-    const top = cy - H / 2 / s, bottom = cy + H / 2 / s;
-    const k0 = Math.floor(left / STEP) - 1, k1 = Math.floor(right / STEP) + 1;
-    const sw = COL * s;
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    const flt = anyFilter();
+    const left = cx - W/2/s, right = cx + W/2/s, top = cy - H/2/s, bottom = cy + H/2/s;
+    const k0 = Math.floor(left/STEP)-1, k1 = Math.floor(right/STEP)+1;
+    const sw = COL*s;
     for (let k = k0; k <= k1; k++) {
-      const col = cols[mod(k, C)], P = col.period, items = col.items;
+      const col = cols[mod(k,C)], P = col.period, items = col.items;
       if (!P || !items.length) continue;
-      const off = phase(k) * P;
-      const sx = (k * STEP - cx) * s + W / 2;
-      const u0 = top + off;
-      let base = Math.floor(u0 / P) * P;
-      let i = firstAt(items, u0 - base);
+      const off = phase(k)*P, sx = (k*STEP - cx)*s + W/2;
+      let base = Math.floor((top+off)/P)*P;
+      let i = firstAt(items, (top+off)-base);
       for (let guard = 0; guard < 4000; guard++) {
         if (i >= items.length) { i = 0; base += P; }
-        const it = items[i];
-        const wy = base + it.y - off;
+        const it = items[i], wy = base + it.y - off;
         if (wy > bottom) break;
-        const ph = photos[it.p];
-        const sh = it.h * s, sy = (wy - cy) * s + H / 2;
-        let src = ph.src;
-        if (ph.file && Math.max(sw, sh) * DPR > ph.long * 1.1) src = getFull(ph) || ph.src;
-        ctx.drawImage(src, sx, sy, sw, sh);
+        const p = photos[it.p], sh = it.h*s, sy = (wy-cy)*s + H/2;
+        const dim = flt && !matches(p);
+        ctx.globalAlpha = dim ? 0.06 : 1;
+        const e = get(p.id);
+        let img = e && e.thumb;
+        if (!dim && Math.max(sw, sh)*DPR > 300) { const f = want(p.id, 'full'); if (f.full) img = f.full; else want(p.id,'thumb'); }
+        else if (!e || !e.thumb) want(p.id, 'thumb');
+        if (img) ctx.drawImage(img, sx, sy, sw, sh);
+        else { ctx.fillStyle = p.color; ctx.fillRect(sx, sy, sw, sh); }
         i++;
       }
     }
+    ctx.globalAlpha = 1;
   }
   function hitTest(px, py) {
-    const wx = cx + (px - W / 2) / s, wy = cy + (py - H / 2) / s;
-    const k = Math.floor(wx / STEP);
-    if (wx - k * STEP > COL) return null;
-    const col = cols[mod(k, C)], P = col.period;
-    if (!P) return null;
-    const off = phase(k) * P, u = wy + off, base = Math.floor(u / P) * P;
-    const it = col.items[firstAt(col.items, u - base)];
-    if (u - base > it.y + it.h) return null;
-    return { x: k * STEP, y: base + it.y - off, w: COL, h: it.h };
+    const wx = cx + (px-W/2)/s, wy = cy + (py-H/2)/s, k = Math.floor(wx/STEP);
+    if (wx - k*STEP > COL) return null;
+    const col = cols[mod(k,C)], P = col.period; if (!P) return null;
+    const off = phase(k)*P, u = wy+off, base = Math.floor(u/P)*P;
+    const it = col.items[firstAt(col.items, u-base)];
+    if (u-base > it.y+it.h) return null;
+    return {x: k*STEP, y: base+it.y-off, w: COL, h: it.h, p: photos[it.p]};
   }
 
-  // ---------- camera motion ----------
-  function applyScale(ns, ax, ay) {
-    const wx = cx + (ax - W / 2) / s, wy = cy + (ay - H / 2) / s;
-    s = ns;
-    cx = wx - (ax - W / 2) / s; cy = wy - (ay - H / 2) / s;
-  }
-  function zoomTo(ns, ax, ay) { tween = null; targetS = clampS(ns); anchor = { x: ax, y: ay }; }
+  // ---- camera ----
+  function applyScale(ns, ax, ay) { const wx = cx+(ax-W/2)/s, wy = cy+(ay-H/2)/s; s = ns; cx = wx-(ax-W/2)/s; cy = wy-(ay-H/2)/s; }
+  function zoomTo(ns, ax, ay) { tween = null; targetS = clampS(ns); anchor = {x:ax, y:ay}; }
   function startTween(to, dur) {
     targetS = null;
     if (reduceMotion || dur <= 0) { cx = to.cx; cy = to.cy; s = Math.exp(to.ls); tween = null; dirty = true; return; }
-    tween = { from: { cx, cy, ls: Math.log(s) }, to, t0: performance.now(), dur };
+    tween = {from:{cx, cy, ls:Math.log(s)}, to, t0:performance.now(), dur};
   }
-  function panBy(dxScreen, dyScreen) {
-    const b = tween ? tween.to : { cx, cy, ls: Math.log(targetS || s) };
-    const sc = Math.exp(b.ls);
-    startTween({ cx: b.cx + dxScreen / sc, cy: b.cy + dyScreen / sc, ls: b.ls }, 650);
-  }
-  const DIRS = { left: { x: -1, y: 0 }, right: { x: 1, y: 0 }, up: { x: 0, y: -1 }, down: { x: 0, y: 1 } };
-  function move(name) {
-    const d = DIRS[name];
-    driftDir = { x: d.x, y: d.y, name };
-    panBy(d.x * W * 0.45, d.y * H * 0.45);
-    syncPad(); wake();
-  }
+  function panBy(dx, dy) { const b = tween ? tween.to : {cx, cy, ls:Math.log(targetS||s)}; const sc = Math.exp(b.ls); startTween({cx:b.cx+dx/sc, cy:b.cy+dy/sc, ls:b.ls}, 650); }
+  const DIRS = {left:{x:-1,y:0}, right:{x:1,y:0}, up:{x:0,y:-1}, down:{x:0,y:1}};
+  function move(name) { const d = DIRS[name]; driftDir = {x:d.x, y:d.y, name}; panBy(d.x*W*0.45, d.y*H*0.45); syncPad(); wake(); }
   function focusRect(r) {
-    const rcx = r.x + r.w / 2, rcy = r.y + r.h / 2;
-    const ts = clampS(Math.min(W * 0.88 / r.w, H * 0.84 / r.h));
-    const isFocused = s > ts * 0.85 && Math.abs(cx - rcx) < r.w * 0.12 && Math.abs(cy - rcy) < r.h * 0.12;
-    if (isFocused) startTween({ cx: rcx, cy: rcy, ls: Math.log(s0) }, 800);
-    else { setPlaying(false); startTween({ cx: rcx, cy: rcy, ls: Math.log(ts) }, 850); }
+    const rcx = r.x+r.w/2, rcy = r.y+r.h/2, ts = clampS(Math.min(W*0.88/r.w, H*0.84/r.h));
+    const focused = s > ts*0.85 && Math.abs(cx-rcx) < r.w*0.12 && Math.abs(cy-rcy) < r.h*0.12;
+    if (focused) startTween({cx:rcx, cy:rcy, ls:Math.log(s0)}, 800);
+    else { setPlaying(false); startTween({cx:rcx, cy:rcy, ls:Math.log(ts)}, 850); }
   }
-  function reset() { startTween({ cx: 0, cy: 0, ls: Math.log(s0) }, 900); }
+  function reset() { startTween({cx:0, cy:0, ls:Math.log(s0)}, 900); }
 
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min(64, now - last); last = now;
+    const dt = Math.min(64, now-last); last = now;
     if (tween) {
-      const p = clamp((now - tween.t0) / tween.dur, 0, 1), e = ease(p);
-      cx = tween.from.cx + (tween.to.cx - tween.from.cx) * e;
-      cy = tween.from.cy + (tween.to.cy - tween.from.cy) * e;
-      s = Math.exp(tween.from.ls + (tween.to.ls - tween.from.ls) * e);
-      if (p >= 1) tween = null;
-      dirty = true;
+      const pr = clamp((now-tween.t0)/tween.dur, 0, 1), e = ease(pr);
+      cx = tween.from.cx + (tween.to.cx-tween.from.cx)*e;
+      cy = tween.from.cy + (tween.to.cy-tween.from.cy)*e;
+      s = Math.exp(tween.from.ls + (tween.to.ls-tween.from.ls)*e);
+      if (pr >= 1) tween = null; dirty = true;
     }
     if (targetS != null) {
-      const r = targetS / s;
+      const r = targetS/s;
       if (Math.abs(Math.log(r)) < 0.002) { applyScale(targetS, anchor.x, anchor.y); targetS = null; }
-      else applyScale(s * Math.pow(r, 0.22), anchor.x, anchor.y);
+      else applyScale(s*Math.pow(r, 0.22), anchor.x, anchor.y);
       dirty = true;
     }
     if (!dragging) {
-      if (Math.abs(vx) + Math.abs(vy) > 0.01) {
-        cx -= vx * dt / s; cy -= vy * dt / s;
-        const d = Math.pow(0.94, dt / 16); vx *= d; vy *= d; dirty = true;
-      } else { vx = 0; vy = 0; }
-      if (playing && !tween) {
-        cx += driftDir.x * SPEED * dt / 1000 / s;
-        cy += driftDir.y * SPEED * dt / 1000 / s;
-        dirty = true;
-      }
+      if (Math.abs(vx)+Math.abs(vy) > 0.01) { cx -= vx*dt/s; cy -= vy*dt/s; const d = Math.pow(0.94, dt/16); vx*=d; vy*=d; dirty = true; }
+      else { vx = 0; vy = 0; }
+      if (playing && !tween) { cx += driftDir.x*SPEED*dt/1000/s; cy += driftDir.y*SPEED*dt/1000/s; dirty = true; }
     }
     if (dirty) { draw(); dirty = false; }
     requestAnimationFrame(frame);
   }
 
-  // ---------- input ----------
+  // ---- input ----
   cv.addEventListener('wheel', (e) => {
     e.preventDefault(); wake();
     let dx = e.deltaX, dy = e.deltaY;
     if (e.deltaMode === 1) { dx *= 33; dy *= 33; } else if (e.deltaMode === 2) { dx *= W; dy *= H; }
     const mouseWheel = !e.ctrlKey && dx === 0 && (e.deltaMode !== 0 || (Math.abs(dy) >= 50 && Number.isInteger(dy)));
-    if (e.ctrlKey || mouseWheel) {
-      const f = Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0018));
-      zoomTo((targetS || s) * f, e.clientX, e.clientY);
-    } else {
-      tween = null; cx += dx / s; cy += dy / s; dirty = true;
-    }
-  }, { passive: false });
+    if (e.ctrlKey || mouseWheel) { const f = Math.exp(-dy*(e.ctrlKey?0.01:0.0018)); zoomTo((targetS||s)*f, e.clientX, e.clientY); }
+    else { tween = null; cx += dx/s; cy += dy/s; dirty = true; }
+  }, {passive:false});
 
-  const pts = new Map();
-  let down = null, moved = 0, lastT = 0, pinch = null;
-  const pinchInfo = () => {
-    const [a, b] = [...pts.values()];
-    return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
-  };
+  const pts = new Map(); let down = null, moved = 0, lastT = 0, pinch = null;
+  const pinchInfo = () => { const [a,b] = [...pts.values()]; return {d: Math.hypot(a.x-b.x, a.y-b.y)||1, mid:{x:(a.x+b.x)/2, y:(a.y+b.y)/2}}; };
   cv.addEventListener('pointerdown', (e) => {
-    wake();
-    cv.setPointerCapture(e.pointerId);
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    tween = null; targetS = null;
-    if (pts.size === 1) {
-      dragging = true; cv.classList.add('dragging');
-      down = { x: e.clientX, y: e.clientY, t: performance.now() };
-      moved = 0; vx = vy = 0; lastT = performance.now();
-    } else if (pts.size === 2) { pinch = pinchInfo(); moved = 99; }
+    wake(); cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, {x:e.clientX, y:e.clientY}); tween = null; targetS = null;
+    if (pts.size === 1) { dragging = true; cv.classList.add('dragging'); down = {x:e.clientX, y:e.clientY, t:performance.now()}; moved = 0; vx = vy = 0; lastT = performance.now(); }
+    else if (pts.size === 2) { pinch = pinchInfo(); moved = 99; }
   });
   cv.addEventListener('pointermove', (e) => {
-    wake();
-    if (!pts.has(e.pointerId)) return;
-    const prev = pts.get(e.pointerId);
-    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const now = performance.now();
+    wake(); if (!pts.has(e.pointerId)) return;
+    const prev = pts.get(e.pointerId); pts.set(e.pointerId, {x:e.clientX, y:e.clientY}); const now = performance.now();
     if (pts.size === 1) {
-      const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
-      cx -= dx / s; cy -= dy / s;
-      moved += Math.abs(dx) + Math.abs(dy);
-      const dtm = Math.max(1, now - lastT);
-      vx = 0.8 * (dx / dtm) + 0.2 * vx; vy = 0.8 * (dy / dtm) + 0.2 * vy;
-      lastT = now; dirty = true;
+      const dx = e.clientX-prev.x, dy = e.clientY-prev.y; cx -= dx/s; cy -= dy/s; moved += Math.abs(dx)+Math.abs(dy);
+      const dtm = Math.max(1, now-lastT); vx = 0.8*(dx/dtm)+0.2*vx; vy = 0.8*(dy/dtm)+0.2*vy; lastT = now; dirty = true;
     } else if (pts.size === 2 && pinch) {
-      const p = pinchInfo();
-      applyScale(clampS(s * p.d / pinch.d), p.mid.x, p.mid.y);
-      cx -= (p.mid.x - pinch.mid.x) / s; cy -= (p.mid.y - pinch.mid.y) / s;
-      pinch = p; vx = vy = 0; dirty = true;
+      const p = pinchInfo(); applyScale(clampS(s*p.d/pinch.d), p.mid.x, p.mid.y); cx -= (p.mid.x-pinch.mid.x)/s; cy -= (p.mid.y-pinch.mid.y)/s; pinch = p; vx = vy = 0; dirty = true;
     }
   });
   function endPointer(e) {
-    if (!pts.has(e.pointerId)) return;
-    pts.delete(e.pointerId);
+    if (!pts.has(e.pointerId)) return; pts.delete(e.pointerId);
     if (pts.size === 1) { pinch = null; lastT = performance.now(); }
     if (pts.size === 0) {
-      dragging = false; cv.classList.remove('dragging'); pinch = null;
-      const now = performance.now();
-      if (e.type === 'pointerup' && down && moved < 6 && now - down.t < 450) {
-        vx = vy = 0;
-        const r = hitTest(e.clientX, e.clientY);
-        if (r) focusRect(r);
-      } else if (now - lastT > 90) { vx = vy = 0; }
+      dragging = false; cv.classList.remove('dragging'); pinch = null; const now = performance.now();
+      if (e.type === 'pointerup' && down && moved < 6 && now-down.t < 450) { vx = vy = 0; const r = hitTest(e.clientX, e.clientY); if (r) focusRect(r); }
+      else if (now-lastT > 90) { vx = vy = 0; }
     }
   }
   cv.addEventListener('pointerup', endPointer);
   cv.addEventListener('pointercancel', endPointer);
 
-  window.addEventListener('keydown', (e) => {
+  addEventListener('keydown', (e) => {
     if (e.target && e.target.tagName === 'INPUT') return;
-    wake();
-    const k = e.key;
-    if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown') {
-      e.preventDefault(); move(k.replace('Arrow', '').toLowerCase());
-    } else if (k === '+' || k === '=') { zoomTo((targetS || s) * 1.6, W / 2, H / 2); }
-    else if (k === '-' || k === '_') { zoomTo((targetS || s) / 1.6, W / 2, H / 2); }
+    wake(); const k = e.key;
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)) { e.preventDefault(); move(k.replace('Arrow','').toLowerCase()); }
+    else if (k === '+' || k === '=') zoomTo((targetS||s)*1.6, W/2, H/2);
+    else if (k === '-' || k === '_') zoomTo((targetS||s)/1.6, W/2, H/2);
     else if (k === ' ' && !(e.target && e.target.tagName === 'BUTTON')) { e.preventDefault(); setPlaying(!playing); }
     else if (k === '0') reset();
-    else if (k === '?') toggleHelp();
-    else if (k === 'Escape' && !help.hidden) { toggleHelp(false); helpBtn.focus(); }
+    else if (k === 'Escape' && !panel.hidden) { togglePanel(false); filterBtn.focus(); }
   });
 
-  // ---------- pad ----------
-  function setPlaying(v) {
-    playing = v;
-    playBtn.setAttribute('aria-label', v ? 'Pause drift' : 'Resume drift');
-    playIcon.setAttribute('d', v ? 'M8.5 5v14M15.5 5v14' : 'M8 4.8L19 12 8 19.2Z');
-    syncPad();
-  }
-  function syncPad() {
-    dirBtns.forEach((b) => b.classList.toggle('on', playing && b.dataset.dir === driftDir.name));
-  }
+  // ---- pad ----
+  function setPlaying(v) { playing = v; playBtn.setAttribute('aria-label', v?'Pause drift':'Resume drift'); playIcon.setAttribute('d', v?'M8.5 5v14M15.5 5v14':'M8 4.8L19 12 8 19.2Z'); syncPad(); }
+  function syncPad() { dirBtns.forEach(b => b.classList.toggle('on', playing && b.dataset.dir === driftDir.name)); }
   playBtn.addEventListener('click', () => setPlaying(!playing));
-  dirBtns.forEach((b) => b.addEventListener('click', () => move(b.dataset.dir)));
-  document.getElementById('zin').addEventListener('click', () => zoomTo((targetS || s) * 1.6, W / 2, H / 2));
-  document.getElementById('zout').addEventListener('click', () => zoomTo((targetS || s) / 1.6, W / 2, H / 2));
+  dirBtns.forEach(b => b.addEventListener('click', () => move(b.dataset.dir)));
+  document.getElementById('zin').addEventListener('click', () => zoomTo((targetS||s)*1.6, W/2, H/2));
+  document.getElementById('zout').addEventListener('click', () => zoomTo((targetS||s)/1.6, W/2, H/2));
   document.getElementById('reset').addEventListener('click', reset);
-  function toggleHelp(force) {
-    const open = typeof force === 'boolean' ? force : help.hidden;
-    help.hidden = !open;
-    helpBtn.setAttribute('aria-expanded', String(open));
-    helpBtn.classList.toggle('on', open);
-    wake();
-  }
-  helpBtn.addEventListener('click', () => toggleHelp());
-  document.getElementById('try').addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', () => { loadFiles(fileInput.files); fileInput.value = ''; });
+  function togglePanel(force) { const open = typeof force === 'boolean' ? force : panel.hidden; panel.hidden = !open; filterBtn.setAttribute('aria-expanded', String(open)); filterBtn.classList.toggle('on', open); wake(); }
+  filterBtn.addEventListener('click', () => togglePanel());
 
   let idleT = 0;
-  function wake() {
-    document.body.classList.remove('idle');
-    clearTimeout(idleT);
-    idleT = setTimeout(() => {
-      if (help.hidden && !pad.matches(':focus-within')) document.body.classList.add('idle');
-    }, 3500);
-  }
-  window.addEventListener('pointermove', wake, { passive: true });
+  function wake() { document.body.classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (panel.hidden && !pad.matches(':focus-within')) document.body.classList.add('idle'); }, 3500); }
+  addEventListener('pointermove', wake, {passive:true});
 
-  // ---------- your own photos ----------
-  let toastT = 0;
-  function setStatus(text, persist) {
-    clearTimeout(toastT);
-    if (!text) { statusEl.hidden = true; statusEl.textContent = ''; return; }
-    statusEl.textContent = text;
-    statusEl.hidden = false;
-    if (!persist) toastT = setTimeout(() => { statusEl.hidden = true; }, 4000);
+  // ---- filter UI ----
+  const COLHEX = {warm:'#c8794f', green:'#6f8f5a', cool:'#5a82a8', purple:'#9a6ab0', neutral:'#9a948a'};
+  function chip(label, on, onClick, swatch) {
+    const b = document.createElement('button');
+    b.className = 'chip' + (on ? ' on' : ''); b.type = 'button'; b.setAttribute('aria-pressed', String(on));
+    if (swatch) { const s = document.createElement('span'); s.className = 'sw'; s.style.background = swatch; b.appendChild(s); }
+    b.appendChild(document.createTextNode(label));
+    b.addEventListener('click', () => { onClick(); dirty = true; renderChips(); updateCount(); });
+    return b;
   }
-  async function loadFiles(list) {
-    const files = [...(list || [])].filter((f) => f.type.startsWith('image/') || /\.(jpe?g|png|webp|avif|gif|heic|heif)$/i.test(f.name));
-    if (!files.length) return;
-    files.sort((a, b) => a.lastModified - b.lastModified);
-    toggleHelp(false);
-    const mine = usingSamples ? [] : photos.slice();
-    let bad = 0;
-    for (let i = 0; i < files.length; i++) {
-      setStatus('Loading ' + (i + 1) + ' / ' + files.length, true);
-      try {
-        const t = await decode(files[i], 480);
-        mine.push({ id: 'u' + (uid++), src: t, ar: t.width / t.height, long: Math.max(t.width, t.height), file: files[i] });
-        if (mine.length === 1 || i % 12 === 11 || i === files.length - 1) {
-          photos = mine.slice(); usingSamples = false; layout();
-        }
-      } catch (err) { bad++; }
+  function renderChips() {
+    const subEl = document.getElementById('subjects'); subEl.textContent = '';
+    (window.__cats || []).forEach(c => subEl.appendChild(chip(c, subjects.has(c), () => { subjects.has(c) ? subjects.delete(c) : subjects.add(c); })));
+    const colEl = document.getElementById('colours'); colEl.textContent = '';
+    (window.__cols || []).forEach(c => colEl.appendChild(chip(c, colours.has(c), () => { colours.has(c) ? colours.delete(c) : colours.add(c); }, COLHEX[c])));
+    fdot.hidden = !anyFilter();
+  }
+  function updateCount() { const n = anyFilter() ? photos.filter(matches).length : photos.length; countEl.textContent = n + (n === 1 ? ' photo' : ' photos'); }
+  document.getElementById('clear').addEventListener('click', () => { subjects.clear(); colours.clear(); dirty = true; renderChips(); updateCount(); });
+
+  // ---- start ----
+  function shuffle(a) { for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i], a[j]] = [a[j], a[i]]; } }
+  async function start() {
+    addEventListener('resize', resize); resize();
+    try {
+      const data = await (await fetch('photos.json', {cache:'no-store'})).json();
+      photos = data.photos || [];
+      window.__cats = data.categories || [];
+      window.__cols = data.colours || [];
+    } catch (err) {
+      bootMsg.textContent = 'Could not load photos.json';
+      return;
     }
-    const n = photos.length;
-    let msg = usingSamples ? 'No photos could be opened' : n + (n === 1 ? ' photo' : ' photos');
-    if (bad && !usingSamples) msg += ' · ' + bad + ' could not be opened (unsupported format)';
-    setStatus(msg);
+    if (!photos.length) { bootMsg.textContent = 'No photos yet'; return; }
+    shuffle(photos);
+    layout(); renderChips(); updateCount();
+    s = s0; setPlaying(playing); wake();
+    requestAnimationFrame(frame);
+    requestAnimationFrame(() => boot.classList.add('gone'));
+    setTimeout(() => boot.hidden = true, 600);
   }
-  let dragDepth = 0;
-  const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
-  window.addEventListener('dragenter', (e) => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; drop.hidden = false; });
-  window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
-  window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) drop.hidden = true; });
-  window.addEventListener('drop', (e) => {
-    if (!hasFiles(e)) return;
-    e.preventDefault(); dragDepth = 0; drop.hidden = true;
-    loadFiles(e.dataTransfer.files);
-  });
-
-  // ---------- start ----------
-  window.addEventListener('resize', resize);
-  resize();
-  s = s0;
-  loadSamples();
-  setPlaying(playing);
-  wake();
-  requestAnimationFrame(frame);
+  start();
 })();
 </script>
 </body>
