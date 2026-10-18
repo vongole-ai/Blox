@@ -5,10 +5,9 @@ build.py — prepare photos for the Loop page.
 What it does, per photo in the source folder:
   - fixes orientation and strips EXIF (removes GPS and other personal data)
   - writes a small thumbnail and a large version, both WebP
-  - records aspect ratio and dominant colour
+  - records aspect ratio and colour groups (for the Colour filter)
 It then writes photos.json, the index the Loop page reads.
-Tags come from tags.json (see the Goose instructions); a photo with no
-matching category goes to "misc". Re-runs only process new photos.
+Re-runs only process new photos.
 
 Usage:
   pip install pillow
@@ -25,7 +24,6 @@ from collections import Counter
 from PIL import Image, ImageOps
 
 # ---- settings ----
-CATEGORIES = ["architecture", "landscape", "people", "car", "animal", "objects"]  # misc is implicit
 COLOURS = ["warm", "green", "cool", "purple", "neutral"]
 THUMB_LONG = 240      # px, long side, for the far view
 FULL_LONG  = 1600     # px, long side, for zoom-in
@@ -34,7 +32,6 @@ FULL_Q     = 82
 HERE   = os.path.dirname(os.path.abspath(__file__))
 OUTDIR = os.path.join(HERE, "loop", "photos")
 INDEX  = os.path.join(HERE, "loop", "photos.json")
-TAGS   = os.path.join(HERE, "tags.json")
 EXTS   = (".jpg", ".jpeg", ".png")
 
 
@@ -45,31 +42,53 @@ def slug(name):
     return f"{base[:40]}-{h}"
 
 
-def dominant_color(im):
-    small = im.convert("RGB").resize((48, 48))
-    q = small.quantize(colors=8)
-    pal = q.getpalette()
-    counts = Counter(q.getdata())
-    idx = counts.most_common(1)[0][0]
-    r, g, b = pal[idx * 3: idx * 3 + 3]
-    return (r, g, b), f"#{r:02x}{g:02x}{b:02x}"
-
-
-def colour_group(rgb):
-    r, g, b = (c / 255 for c in rgb)
-    h, l, s = colorsys.rgb_to_hls(r, g, b)
-    if s < 0.18:                      # little colour → black/white/grey
-        return "neutral"
+def hue_bucket(h):
     deg = h * 360
-    if deg < 40 or deg >= 320:        # reds, oranges
+    if deg < 40 or deg >= 320:        # reds, oranges, pink-red
         return "warm"
-    if deg < 70:                      # yellows / warm
+    if deg < 70:                      # yellows
         return "warm"
     if deg < 170:                     # greens
         return "green"
-    if deg < 255:                     # cyan / blue
+    if deg < 255:                     # cyan, blue
         return "cool"
-    return "purple"                   # purple / pink / magenta
+    return "purple"                   # purple, magenta
+
+
+def analyse_colour(im):
+    """Return (hex of the colour that leads the photo, [1-2 colour groups]).
+    Picks the colour that really dominates, not a dull background, and lets a
+    photo belong to two groups when it has two strong colours."""
+    small = im.convert("RGB").resize((64, 64))
+    q = small.quantize(colors=16)
+    pal = q.getpalette()
+    counts = Counter(q.getdata())
+    total = sum(counts.values()) or 1
+
+    votes = {b: 0.0 for b in COLOURS}
+    best_hex, best_score = None, -1.0
+    for idx, n in counts.items():
+        r, g, b = pal[idx * 3: idx * 3 + 3]
+        share = n / total
+        h, l, s = colorsys.rgb_to_hls(r / 255, g / 255, b / 255)
+        if s < 0.18 or l < 0.08 or l > 0.95:   # greyish / near black / near white
+            votes["neutral"] += share
+            score = share * 0.12
+        else:
+            votes[hue_bucket(h)] += share * s   # weight real colour by how vivid it is
+            score = share * s
+        if score > best_score:
+            best_score, best_hex = score, f"#{r:02x}{g:02x}{b:02x}"
+
+    chroma = {b: v for b, v in votes.items() if b != "neutral"}
+    ordered = sorted(chroma.items(), key=lambda kv: -kv[1])
+    if ordered[0][1] < 0.06:                     # almost no real colour anywhere
+        groups = ["neutral"]
+    else:
+        groups = [ordered[0][0]]
+        if len(ordered) > 1 and ordered[1][1] >= 0.5 * ordered[0][1] and ordered[1][1] >= 0.08:
+            groups.append(ordered[1][0])          # a strong second colour
+    return best_hex, groups
 
 
 def save_webp(im, path, long_side, quality):
@@ -77,24 +96,6 @@ def save_webp(im, path, long_side, quality):
     k = min(1.0, long_side / max(w, h))
     out = im if k == 1.0 else im.resize((max(1, round(w * k)), max(1, round(h * k))), Image.LANCZOS)
     out.convert("RGB").save(path, "WEBP", quality=quality, method=6)
-
-
-def load_tags():
-    if not os.path.exists(TAGS):
-        return {}
-    try:
-        with open(TAGS, encoding="utf-8") as f:
-            raw = json.load(f)
-    except Exception as e:
-        print(f"  ! tags.json could not be read ({e}); continuing without tags")
-        return {}
-    clean = {}
-    for name, tags in raw.items():
-        if not isinstance(tags, list):
-            continue
-        keep = [t.lower() for t in tags if t.lower() in CATEGORIES]
-        clean[name] = keep
-    return clean
 
 
 def main():
@@ -106,14 +107,9 @@ def main():
 
     os.makedirs(os.path.join(OUTDIR, "thumb"), exist_ok=True)
     os.makedirs(os.path.join(OUTDIR, "full"), exist_ok=True)
-    tags = load_tags()
 
     files = sorted(f for f in os.listdir(src) if f.lower().endswith(EXTS))
     print(f"{len(files)} photos found in {src}")
-    if tags:
-        print(f"tags.json loaded: {len(tags)} entries")
-    else:
-        print("no tags.json yet — every photo will be 'misc' for now")
 
     photos, done, skipped, bad = [], 0, 0, 0
     for i, name in enumerate(files, 1):
@@ -125,8 +121,7 @@ def main():
                 im = ImageOps.exif_transpose(im)   # apply rotation, then drop EXIF
                 w, h = im.size
                 ratio = round(w / h, 4)
-                rgb, color = dominant_color(im)
-                cgroup = colour_group(rgb)
+                color, cgroups = analyse_colour(im)
                 if not (os.path.exists(tpath) and os.path.exists(fpath)):
                     save_webp(im, tpath, THUMB_LONG, THUMB_Q)
                     save_webp(im, fpath, FULL_LONG, FULL_Q)
@@ -138,26 +133,21 @@ def main():
             bad += 1
             continue
 
-        cats = tags.get(name, [])
         photos.append({
             "id": pid,
             "ratio": ratio,
             "color": color,
-            "colour": cgroup,
-            "tags": cats if cats else ["misc"],
+            "colour": cgroups,
         })
         if i % 50 == 0:
             print(f"  {i}/{len(files)}")
 
     with open(INDEX, "w", encoding="utf-8") as f:
-        json.dump({"categories": CATEGORIES + ["misc"], "colours": COLOURS,
-                   "photos": photos}, f,
+        json.dump({"colours": COLOURS, "photos": photos}, f,
                   ensure_ascii=False, separators=(",", ":"))
 
-    tagged = sum(1 for p in photos if p["tags"] != ["misc"])
     print(f"\nDone. {len(photos)} photos in index "
           f"({done} built, {skipped} already done, {bad} skipped).")
-    print(f"{tagged} tagged, {len(photos) - tagged} in misc.")
     print(f"Index written to {INDEX}")
 
 
