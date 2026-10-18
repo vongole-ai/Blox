@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>bloxbcn</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      background: #14131a;
+      overflow: hidden;
+    }
+    #stage {
+      position: fixed;
+      inset: 0;
+      cursor: pointer;
+    }
+    #c {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="c"></canvas>
+  </div>
+
+  <script>
+    (function(){
+      const stage = document.getElementById('stage');
+      const cvs = document.getElementById('c');
+      const ctx = cvs.getContext('2d');
+
+      const BG = '#14131a';
+      // paleta pastel
+      const PALETTE = ['#f3c9d8','#dcc8f2','#c3ddf3','#c7eedb','#f8e0b8','#f5d3cb','#e2dbf8','#d0ebe6'];
+      const MAX = 140;
+      const G = 0.035;
+
+      let W = 0, H = 0, DPR = 1;
+      let mush = [];
+      let last = performance.now(), time = 0, nextSpawn = 0;
+
+      function resize(){
+        const r = stage.getBoundingClientRect();
+        W = r.width; H = r.height;
+        DPR = Math.min(window.devicePixelRatio || 1, 2);
+        cvs.width = Math.round(W * DPR);
+        cvs.height = Math.round(H * DPR);
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      }
+
+      const rnd = (a, b) => a + Math.random() * (b - a);
+      const pick = a => a[(Math.random() * a.length) | 0];
+
+      function hexToRgb(h){
+        const n = parseInt(h.slice(1), 16);
+        return [n >> 16, (n >> 8) & 255, n & 255];
+      }
+
+      function mix(hex, toHex, t){
+        const a = hexToRgb(hex), b = hexToRgb(toHex);
+        return 'rgb(' + a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',') + ')';
+      }
+
+      function makeSpots(r){
+        const n = 2 + ((Math.random() * 4) | 0);
+        const spots = [];
+        for (let i = 0; i < n; i++){
+          spots.push({
+            x: rnd(-0.5, 0.5) * r,
+            y: rnd(-0.6, -0.3) * r,
+            rad: rnd(0.07, 0.13) * r
+          });
+        }
+        return spots;
+      }
+
+      function spawn(x, y){
+        if (mush.length >= MAX) mush.shift();
+        const z = Math.random();                              // profundidad: 0 lejos, 1 cerca
+        const r = 5 + Math.pow(Math.random(), 1.9) * 40;      // mayoría chicos, algunos grandes
+        mush.push({
+          x: x != null ? x : rnd(20, W - 20),
+          y: y != null ? y : -r * 2 - 20,
+          vx: rnd(-0.15, 0.15),
+          vy: rnd(0.05, 0.3),
+          r: r,
+          z: z,
+          alpha: 0.45 + 0.5 * z,
+          maxV: 0.6 + 0.9 * z,                                // velocidad máxima de caída
+          rot: rnd(-0.35, 0.35),
+          vr: rnd(-0.005, 0.005),
+          color: pick(PALETTE),
+          spots: makeSpots(r),
+          seed: Math.random() * 100
+        });
+      }
+
+      function physics(){
+        for (const m of mush){
+          m.vy = Math.min(m.vy + G * (0.6 + m.z * 0.8), m.maxV);
+          m.vx *= 0.99;
+          m.x += m.vx + Math.sin(time * 0.0006 + m.seed) * 0.08;
+          m.y += m.vy;
+          m.rot += m.vr;
+          m.vr *= 0.995;
+        }
+
+        for (const m of mush){
+          const bottom = m.r * 1.3;
+          if (m.y + bottom > H){
+            m.y = H - bottom;
+            m.vy = 0;
+            m.vx *= 0.8;
+            m.vr *= 0.8;
+          }
+          if (m.x < m.r){ m.x = m.r; m.vx = Math.abs(m.vx) * 0.3; }
+          if (m.x > W - m.r){ m.x = W - m.r; m.vx = -Math.abs(m.vx) * 0.3; }
+        }
+
+        for (let i = 0; i < mush.length; i++){
+          for (let j = i + 1; j < mush.length; j++){
+            const a = mush[i], b = mush[j];
+            if (Math.abs(a.z - b.z) > 0.25) continue;
+            const ax = a.x, ay = a.y - a.r * 0.4;
+            const bx = b.x, by = b.y - b.r * 0.4;
+            const dx = bx - ax, dy = by - ay;
+            const rr = (a.r + b.r) * 0.8;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < rr * rr && d2 > 0.0001){
+              const d = Math.sqrt(d2);
+              const nx = dx / d, ny = dy / d;
+              const push = (rr - d) * 0.5;
+              a.x -= nx * push; a.y -= ny * push;
+              b.x += nx * push; b.y += ny * push;
+              const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+              if (rel < 0){
+                const imp = rel * 0.4;
+                a.vx += nx * imp; a.vy += ny * imp;
+                b.vx -= nx * imp; b.vy -= ny * imp;
+              }
+            }
+          }
+        }
+      }
+
+      function drawMush(m){
+        const r = m.r;
+        ctx.save();
+        ctx.globalAlpha = m.alpha;
+        ctx.translate(m.x, m.y);
+        ctx.rotate(m.rot + Math.sin(time * 0.0007 + m.seed) * 0.025);
+
+        // tallo: fino, ligeramente afinado hacia la base
+        const sw = r * 0.22, sh = r * 1.2;
+        const gStem = ctx.createLinearGradient(-sw, 0, sw, 0);
+        gStem.addColorStop(0, '#e9dfd3');
+        gStem.addColorStop(0.5, '#fbf7f1');
+        gStem.addColorStop(1, '#e9dfd3');
+        ctx.fillStyle = gStem;
+        ctx.beginPath();
+        ctx.moveTo(-sw * 0.55, 0);
+        ctx.bezierCurveTo(-sw * 0.5, sh * 0.5, -sw * 0.75, sh * 0.8, -sw * 0.8, sh);
+        ctx.quadraticCurveTo(0, sh * 1.08, sw * 0.8, sh);
+        ctx.bezierCurveTo(sw * 0.75, sh * 0.8, sw * 0.5, sh * 0.5, sw * 0.55, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // sombrero: cúpula suave con borde ondulado
+        const gCap = ctx.createRadialGradient(-r * 0.3, -r * 0.6, r * 0.05, 0, -r * 0.3, r * 1.1);
+        gCap.addColorStop(0, mix(m.color, '#ffffff', 0.55));
+        gCap.addColorStop(0.7, m.color);
+        gCap.addColorStop(1, mix(m.color, '#6b5a7a', 0.12));
+        ctx.fillStyle = gCap;
+        ctx.beginPath();
+        ctx.moveTo(-r, 0);
+        ctx.bezierCurveTo(-r * 1.05, -r * 1.0, r * 1.05, -r * 1.0, r, 0);
+        ctx.bezierCurveTo(r * 0.6, r * 0.16, r * 0.3, r * 0.02, 0, r * 0.12);
+        ctx.bezierCurveTo(-r * 0.3, r * 0.02, -r * 0.6, r * 0.16, -r, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // láminas: una línea clara bajo el sombrero
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = Math.max(0.6, r * 0.03);
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.9, r * 0.02);
+        ctx.quadraticCurveTo(0, r * 0.2, r * 0.9, r * 0.02);
+        ctx.stroke();
+
+        // puntos discretos
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        for (const s of m.spots){
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.rad, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      function frame(now){
+        time += Math.min(now - last, 50);
+        last = now;
+
+        if (now >= nextSpawn){
+          spawn();
+          nextSpawn = now + rnd(1400, 2600);
+        }
+
+        ctx.fillStyle = BG;
+        ctx.fillRect(0, 0, W, H);
+
+        physics();
+
+        // los lejanos se dibujan primero
+        const ordered = mush.slice().sort((a, b) => a.z - b.z);
+        for (const m of ordered) drawMush(m);
+
+        requestAnimationFrame(frame);
+      }
+
+      stage.addEventListener('pointerdown', e => {
+        const r = stage.getBoundingClientRect();
+        spawn(e.clientX - r.left, -30);
+      });
+
+      if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+      window.addEventListener('resize', resize);
+
+      resize();
+      for (let i = 0; i < 14; i++) spawn(rnd(20, W - 20), rnd(0, H));
+      nextSpawn = performance.now() + 1000;
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
