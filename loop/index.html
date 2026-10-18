@@ -6,22 +6,28 @@
 <meta name="theme-color" content="#111110">
 <title>Loop — Blox BCN</title>
 <meta name="description" content="Loop: an endless canvas of photographs.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Expanded:wght@600;700&display=swap">
+<link rel="preload" href="/loop/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+/* Archivo, self-hosted (SIL Open Font License, see fonts/OFL.txt): one variable file, weights 100-900, widths 62-125% */
+@font-face {
+  font-family: 'Archivo'; src: url('/loop/fonts/archivo.woff2') format('woff2');
+  font-weight: 100 900; font-stretch: 62% 125%; font-style: normal; font-display: swap;
+}
 :root {
   --bg: #111110; --panel: #16161a; --glass: rgba(20,20,22,0.88); --hover: #222228;
   --line: #2b2b31; --fg: #ededf0; --muted: #8b8b93; --cream: #ededf0; --ink: #0e0e10;
   --veil: rgba(14,14,14,0.86); --shadow: rgba(0,0,0,0.55);
   --ui: 'Archivo','Helvetica Neue',Arial,sans-serif;
-  --display: 'Archivo Expanded','Archivo','Helvetica Neue',Arial,sans-serif;
+  --grade: brightness(0.95) contrast(0.94) saturate(0.97);   /* subtle global grade */
+  --fade: 2000ms;
   color-scheme: dark;
 }
-html, body { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--fg); font-family: var(--ui); overflow: hidden; -webkit-font-smoothing: antialiased; }
+html, body { height: 100%; margin: 0; overscroll-behavior: none; }
+body { background: var(--bg); color: var(--fg); font-family: var(--ui); overflow: hidden;
+  -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 [hidden] { display: none !important; }
-#stage { position: fixed; inset: 0; display: block; touch-action: none; cursor: grab; }
+button { touch-action: manipulation; }
+#stage { position: fixed; inset: 0; display: block; touch-action: none; cursor: grab; filter: var(--grade); }
 #stage.dragging { cursor: grabbing; }
 body.idle #stage { cursor: none; }
 .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 60%, var(--veil) 100%); }
@@ -42,23 +48,24 @@ body.idle #stage { cursor: none; }
 .pad button:focus-visible, .panel button:focus-visible, .show-ui button:focus-visible { outline: 1px solid var(--fg); outline-offset: 2px; }
 .pad .drift { width: 54px; height: 54px; background: var(--cream); color: var(--ink); margin-right: 6px; }
 .pad .drift:hover { background: #fff; color: var(--ink); }
-.pad .show { color: var(--fg); }
 .pad .group { display: flex; align-items: center; gap: 2px; }
 .pad .sep { width: 1px; height: 22px; background: var(--line); margin: 0 7px; }
 .pad .filter-btn { position: relative; }
 .pad .filter-btn .dot { position: absolute; top: 9px; right: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--cream); }
 .pad svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .pad .drift svg { width: 17px; height: 17px; }
-body.idle .pad { opacity: 0; transform: translate(-50%, 10px); }
 
 /* ---- PLAY (top-left, starts the slideshow) ---- */
 .play-text { position: fixed; top: calc(26px + env(safe-area-inset-top,0px)); left: calc(26px + env(safe-area-inset-left,0px));
   z-index: 22; border: 0; background: transparent; cursor: pointer; padding: 6px 2px;
-  font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: 0.22em; text-transform: uppercase;
+  font-family: var(--ui); font-stretch: 125%; font-weight: 600; font-size: 15px; letter-spacing: 0.22em; text-transform: uppercase;
   color: var(--fg); transition: opacity .6s ease, color .2s ease; }
 .play-text:hover { color: #fff; }
 .play-text:focus-visible { outline: 1px solid var(--fg); outline-offset: 3px; }
-body.idle .play-text { opacity: 0; }
+
+/* hidden controls must not catch taps */
+body.idle .pad { opacity: 0; transform: translate(-50%, 10px); pointer-events: none; }
+body.idle .play-text { opacity: 0; pointer-events: none; }
 
 /* ---- filter panel ---- */
 .panel { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom,0px)); transform: translateX(-50%);
@@ -66,7 +73,7 @@ body.idle .play-text { opacity: 0; }
   background: var(--panel); border: 1px solid var(--line); box-shadow: 0 30px 80px var(--shadow);
   display: flex; flex-direction: column; gap: 18px; z-index: 21; }
 .panel .row { display: flex; justify-content: space-between; align-items: center; }
-.panel h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 17px; letter-spacing: 0.01em; }
+.panel h2 { margin: 0; font-stretch: 125%; font-weight: 600; font-size: 17px; letter-spacing: 0.01em; }
 .panel .count { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { display: inline-flex; align-items: center; gap: 9px; min-height: 38px; padding: 0 15px; border-radius: 10px;
@@ -76,20 +83,21 @@ body.idle .play-text { opacity: 0; }
 .chip.on { background: var(--fg); color: var(--ink); border-color: var(--fg); }
 .chip .sw { width: 13px; height: 13px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.22); }
 .chip.on .sw { border-color: rgba(0,0,0,0.3); }
-.panel .foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding-top: 16px; }
+.panel .foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
 .panel .reset { min-height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line);
   background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
 .panel .reset:hover { background: var(--hover); color: var(--fg); }
-.panel .hint { font-size: 11px; color: var(--muted); letter-spacing: 0.02em; }
+.panel .hint { font-size: 11px; color: var(--muted); letter-spacing: 0.02em; text-align: right; }
 
-/* ---- slideshow (projection) ---- */
+/* ---- slideshow: the new photo fades in ON TOP of the old one (no dark dip) ---- */
 .show { position: fixed; inset: 0; background: #000; z-index: 40; }
 .show .slide { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
-  opacity: 0; transition: opacity 2000ms cubic-bezier(.4,0,.2,1);
-  filter: brightness(0.95) contrast(0.94) saturate(0.97); }
+  opacity: 0; z-index: 1; transition: opacity var(--fade) cubic-bezier(.4,0,.2,1);
+  filter: var(--grade); pointer-events: none; -webkit-user-drag: none; }
 .show .slide.vis { opacity: 1; }
-.show-ui { position: absolute; inset: 0; pointer-events: none; transition: opacity .5s ease; }
+.show-ui { position: absolute; inset: 0; z-index: 5; pointer-events: none; transition: opacity .5s ease; }
 .show.hud-off .show-ui { opacity: 0; }
+.show.hud-off .show-ui * { pointer-events: none !important; }
 .show-ui .close { pointer-events: auto; position: absolute; top: calc(22px + env(safe-area-inset-top,0px)); right: calc(22px + env(safe-area-inset-right,0px));
   width: 44px; height: 44px; border-radius: 10px; border: 0; background: rgba(20,20,22,0.5); color: var(--fg);
   display: grid; place-items: center; cursor: pointer; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
@@ -102,14 +110,14 @@ body.idle .play-text { opacity: 0; }
 .show-ui .bar .big { width: 56px; height: 56px; background: var(--fg); color: var(--ink); border-radius: 12px; }
 .show-ui svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .show-ui .big svg { width: 18px; height: 18px; }
-.show-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; letter-spacing: 0.04em; }
+.show-empty { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; color: var(--muted); font-size: 13px; letter-spacing: 0.04em; }
 
 @media (max-width: 640px) {
   .pad .arrows, .pad .sep.first { display: none; }
   .pad button { width: 44px; height: 44px; }
   .pad .drift { width: 50px; height: 50px; }
 }
-@media (prefers-reduced-motion: reduce) { .pad, .show .slide { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .pad, .play-text, .show .slide { transition: none; } }
 </style>
 </head>
 <body>
@@ -151,8 +159,8 @@ body.idle .play-text { opacity: 0; }
 <button type="button" id="showbtn" class="play-text" aria-label="Start slideshow">Play</button>
 
 <div class="show" id="show" hidden aria-label="Slideshow">
-  <img class="slide" id="slideA" alt="">
-  <img class="slide" id="slideB" alt="">
+  <img class="slide" id="slideA" alt="" draggable="false">
+  <img class="slide" id="slideB" alt="" draggable="false">
   <div class="show-empty" id="showEmpty" hidden>No photos for this colour</div>
   <div class="show-ui" id="showui">
     <button class="close" id="showClose" type="button" aria-label="Close slideshow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
@@ -167,23 +175,31 @@ body.idle .play-text { opacity: 0; }
 <script>
 (() => {
   'use strict';
-  const COL = 240, GAP = 10, STEP = COL + GAP, C = 18;
-  const SPEED = 24, MAXCACHE = 420;
-  const HOLD = 7000, FADE = 2000;   // slideshow timing
-  const GRADE = 'brightness(0.95) contrast(0.94) saturate(0.97)';   // subtle global grade
+  // ---------- settings ----------
+  const COL = 240, GAP = 10, STEP = COL + GAP, C = 18;   // mosaic: column width, gap, column pattern
+  const SPEED = 24;                                        // drift speed, screen px per second
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const HOLD = 7000;                                       // slideshow: time per photo
+  const FADE = reduceMotion ? 0 : 2000;                    // slideshow: cross-fade length
+  // which size to show, by the tile's long side in device pixels
+  const MID_AT = 300, FULL_AT = 1000, TINY = 16;
+  // how many off-screen images to keep in memory (on-screen ones are never dropped)
+  const CAP = { thumb: 2500, mid: 60, full: 6 };
+  const MAX_PARALLEL = 8, MAX_QUEUE = 400;
 
-  const cv = document.getElementById('stage'), ctx = cv.getContext('2d');
-  const boot = document.getElementById('boot'), bootMsg = document.getElementById('boot-msg');
-  const driftBtn = document.getElementById('drift'), driftIcon = document.getElementById('drift-icon');
-  const panel = document.getElementById('panel'), filterBtn = document.getElementById('filterbtn'), fdot = document.getElementById('fdot');
-  const pad = document.getElementById('pad'), countEl = document.getElementById('count');
+  const $ = (id) => document.getElementById(id);
+  const cv = $('stage'), ctx = cv.getContext('2d');
+  const boot = $('boot'), bootMsg = $('boot-msg');
+  const driftBtn = $('drift'), driftIcon = $('drift-icon');
+  const panel = $('panel'), filterBtn = $('filterbtn'), fdot = $('fdot');
+  const pad = $('pad'), countEl = $('count'), playText = $('showbtn');
   const dirBtns = [...document.querySelectorAll('[data-dir]')];
+  document.documentElement.style.setProperty('--fade', FADE + 'ms');
 
   let W = 0, H = 0, DPR = 1, dirty = true;
   let cx = 0, cy = 0, s = 1, s0 = 1, targetS = null, anchor = {x:0,y:0}, tween = null;
   let playing = !reduceMotion, driftDir = {x:0,y:1,name:'down'}, vx = 0, vy = 0, dragging = false;
-  let photos = [], cols = [], showing = false, savedView = null;
+  let photos = [], cols = [], colourList = [], showing = false, savedView = null;
   const colours = new Set();
 
   const mod = (a,n) => ((a%n)+n)%n;
@@ -193,35 +209,50 @@ body.idle .play-text { opacity: 0; }
   const minS = () => W / (40*STEP);
   const maxS = () => (Math.max(W, H*1.5)/COL) * 0.98;
   const clampS = (v) => clamp(v, minS(), maxS());
+  const src = (kind, id) => '/loop/photos/' + kind + '/' + id + '.webp';
 
-  // ---- image cache (LRU) ----
-  const cache = new Map();
-  const q = [], MAXP = 10; let active = 0;
-  function get(id) { const v = cache.get(id); if (v) { cache.delete(id); cache.set(id, v); } return v; }
-  function want(id, kind) {
-    let e = cache.get(id);
-    if (!e) { e = {thumb:null, full:null, lt:false, lf:false}; cache.set(id, e); }
-    else { cache.delete(id); cache.set(id, e); }
-    if (kind === 'thumb' && !e.thumb && !e.lt) { e.lt = true; q.push({id, kind, e}); pump(); }
-    if (kind === 'full' && !e.full && !e.lf) { e.lf = true; q.push({id, kind, e}); pump(); }
-    while (cache.size > MAXCACHE) { const k = cache.keys().next().value; if (k === id) break; cache.delete(k); }
-    return e;
+  // ---------- image cache: one LRU per size, newest requests load first ----------
+  const store = { thumb: new Map(), mid: new Map(), full: new Map() };
+  const queue = []; let active = 0, frameNo = 0;
+  function peek(kind, id) {                      // loaded image or null; marks it as used now
+    const m = store[kind], e = m.get(id);
+    if (!e) return null;
+    m.delete(id); m.set(id, e); e.f = frameNo;
+    return e.img;
   }
-  function pump() {
-    while (active < MAXP && q.length) {
-      const job = q.shift(); active++;
-      const img = new Image(); img.decoding = 'async';
-      img.onload = () => { active--; if (job.kind === 'thumb') job.e.thumb = img; else job.e.full = img; dirty = true; pump(); };
-      img.onerror = () => { active--; if (job.kind === 'thumb') job.e.lt = false; else job.e.lf = false; pump(); };
-      img.src = fullSrc(job.id, job.kind);
+  function trim(m, cap) {                        // forget least-recently-used images, never one on screen now
+    while (m.size > cap) {
+      const k = m.keys().next().value;
+      if (m.get(k).f === frameNo) break;
+      m.delete(k);
     }
   }
-  const fullSrc = (id, kind) => '/loop/photos/' + kind + '/' + id + '.webp';
+  function request(kind, id) {
+    const m = store[kind]; let e = m.get(id);
+    if (!e) { e = {img:null, loading:false, f:frameNo}; m.set(id, e); }
+    e.f = frameNo;
+    if (!e.img && !e.loading) { e.loading = true; queue.push({kind, id, e}); }
+    trim(m, CAP[kind]);
+    while (queue.length > MAX_QUEUE) queue.shift().e.loading = false;   // drop stale requests
+    pump();
+  }
+  function pump() {
+    while (active < MAX_PARALLEL && queue.length) {
+      const job = queue.pop();                     // newest first = what is on screen now
+      if (store[job.kind].get(job.id) !== job.e) continue;   // forgotten meanwhile: don't download
+      active++;
+      const img = new Image(); img.decoding = 'async';
+      img.onload = () => { active--; job.e.img = img; job.e.loading = false; dirty = true; pump(); };
+      img.onerror = () => { active--; job.e.loading = false; pump(); };
+      img.src = src(job.kind, job.id);
+    }
+  }
 
-  // ---- filter matching (colour only; p.colour is an array) ----
-  function matches(p) { return !colours.size || p.colour.some(c => colours.has(c)); }
+  // ---------- colour filter (p.colour is a list) ----------
   const anyFilter = () => colours.size > 0;
+  const matches = (p) => !colours.size || p.colour.some(c => colours.has(c));
 
+  // ---------- layout: C columns, each repeating forever ----------
   function layout() {
     const N = photos.length; cols = [];
     for (let c = 0; c < C; c++) {
@@ -241,13 +272,13 @@ body.idle .play-text { opacity: 0; }
     cv.style.width = W+'px'; cv.style.height = H+'px';
     s0 = W / ((W<640?3:8)*STEP); s = clampS(s||s0); dirty = true;
   }
+
   function draw() {
+    frameNo++;
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    ctx.filter = 'none';
     ctx.fillStyle = '#111110'; ctx.fillRect(0,0,W,H);
     if (!cols.length) return;
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-    ctx.filter = GRADE;
     const flt = anyFilter();
     const left = cx - W/2/s, right = cx + W/2/s, top = cy - H/2/s, bottom = cy + H/2/s;
     const k0 = Math.floor(left/STEP)-1, k1 = Math.floor(right/STEP)+1, sw = COL*s;
@@ -263,28 +294,35 @@ body.idle .play-text { opacity: 0; }
         if (wy > bottom) break;
         const p = photos[it.p], sh = it.h*s, sy = (wy-cy)*s + H/2;
         const dim = flt && !matches(p);
+        const longPx = Math.max(sw, sh) * DPR;
         ctx.globalAlpha = dim ? 0.06 : 1;
-        const e = get(p.id); let img = e && e.thumb;
-        if (!dim && Math.max(sw, sh)*DPR > 300) { const f = want(p.id, 'full'); if (f.full) img = f.full; else want(p.id,'thumb'); }
-        else if (!e || !e.thumb) want(p.id, 'thumb');
+        let img = null;
+        if (longPx >= TINY) {
+          // best image already in memory, then ask for the size this tile needs
+          const want = dim ? 'thumb' : longPx > FULL_AT ? 'full' : longPx > MID_AT ? 'mid' : 'thumb';
+          img = (want === 'full' && peek('full', p.id)) || (want !== 'thumb' && peek('mid', p.id)) || peek('thumb', p.id);
+          if (!peek(want, p.id)) request(want, p.id);
+          if (!img && want !== 'thumb') request('thumb', p.id);   // quick stand-in while the bigger one loads
+        }
         if (img) ctx.drawImage(img, sx, sy, sw, sh);
         else { ctx.fillStyle = p.color; ctx.fillRect(sx, sy, sw, sh); }
         i++;
       }
     }
-    ctx.globalAlpha = 1; ctx.filter = 'none';
+    ctx.globalAlpha = 1;
   }
+
   function hitTest(px, py) {
     const wx = cx + (px-W/2)/s, wy = cy + (py-H/2)/s, k = Math.floor(wx/STEP);
     if (wx - k*STEP > COL) return null;
-    const col = cols[mod(k,C)], P = col.period; if (!P) return null;
+    const col = cols[mod(k,C)], P = col.period; if (!P || !col.items.length) return null;
     const off = phase(k)*P, u = wy+off, base = Math.floor(u/P)*P;
     const it = col.items[firstAt(col.items, u-base)];
     if (u-base > it.y+it.h) return null;
-    return {x: k*STEP, y: base+it.y-off, w: COL, h: it.h};
+    return {x: k*STEP, y: base+it.y-off, w: COL, h: it.h, p: photos[it.p]};
   }
 
-  // ---- camera ----
+  // ---------- camera ----------
   function applyScale(ns, ax, ay) { const wx = cx+(ax-W/2)/s, wy = cy+(ay-H/2)/s; s = ns; cx = wx-(ax-W/2)/s; cy = wy-(ay-H/2)/s; }
   function zoomTo(ns, ax, ay) { tween = null; targetS = clampS(ns); anchor = {x:ax, y:ay}; }
   function startTween(to, dur) {
@@ -295,14 +333,16 @@ body.idle .play-text { opacity: 0; }
   function panBy(dx, dy) { const b = tween ? tween.to : {cx, cy, ls:Math.log(targetS||s)}; const sc = Math.exp(b.ls); startTween({cx:b.cx+dx/sc, cy:b.cy+dy/sc, ls:b.ls}, 650); }
   const DIRS = {left:{x:-1,y:0}, right:{x:1,y:0}, up:{x:0,y:-1}, down:{x:0,y:1}};
   function move(name) { const d = DIRS[name]; driftDir = {x:d.x, y:d.y, name}; panBy(d.x*W*0.45, d.y*H*0.45); syncDrift(); wake(); }
+
+  // click a photo: zoom in and remember the view; click again: return to that exact view and motion
   function focusRect(r) {
-    if (savedView) {                      // already zoomed in → return to the exact prior view and resume
+    if (savedView) {
       const sv = savedView; savedView = null;
       startTween({cx:sv.cx, cy:sv.cy, ls:sv.ls}, 800);
-      setDrift(sv.playing);               // drift picks up again after the tween, from where it was
+      setDrift(sv.playing);
       return;
     }
-    savedView = {cx, cy, ls:Math.log(s), playing};   // remember position, zoom and whether it was drifting
+    savedView = {cx, cy, ls:Math.log(s), playing};
     setDrift(false);
     const rcx = r.x+r.w/2, rcy = r.y+r.h/2, ts = clampS(Math.min(W*0.88/r.w, H*0.84/r.h));
     startTween({cx:rcx, cy:rcy, ls:Math.log(ts)}, 850);
@@ -318,7 +358,8 @@ body.idle .play-text { opacity: 0; }
         cx = tween.from.cx + (tween.to.cx-tween.from.cx)*e;
         cy = tween.from.cy + (tween.to.cy-tween.from.cy)*e;
         s = Math.exp(tween.from.ls + (tween.to.ls-tween.from.ls)*e);
-        if (pr >= 1) tween = null; dirty = true;
+        if (pr >= 1) tween = null;
+        dirty = true;
       }
       if (targetS != null) {
         const r = targetS/s;
@@ -336,15 +377,28 @@ body.idle .play-text { opacity: 0; }
     requestAnimationFrame(frame);
   }
 
-  // ---- input (canvas) ----
+  // ---------- input: wheel, trackpad, Safari pinch, touch ----------
+  let lastCtrlWheel = 0;
   cv.addEventListener('wheel', (e) => {
     e.preventDefault(); wake();
     let dx = e.deltaX, dy = e.deltaY;
     if (e.deltaMode === 1) { dx *= 33; dy *= 33; } else if (e.deltaMode === 2) { dx *= W; dy *= H; }
+    if (e.ctrlKey) lastCtrlWheel = performance.now();
     const mouseWheel = !e.ctrlKey && dx === 0 && (e.deltaMode !== 0 || (Math.abs(dy) >= 50 && Number.isInteger(dy)));
     if (e.ctrlKey || mouseWheel) { const f = Math.exp(-dy*(e.ctrlKey?0.01:0.0018)); zoomTo((targetS||s)*f, e.clientX, e.clientY); }
     else { tween = null; cx += dx/s; cy += dy/s; dirty = true; }
   }, {passive:false});
+
+  // Safari (Mac trackpad) reports pinch as gesture events, not ctrl+wheel
+  let gScale = 1;
+  addEventListener('gesturestart', (e) => { e.preventDefault(); gScale = 1; }, {passive:false});
+  addEventListener('gesturechange', (e) => {
+    e.preventDefault();
+    if (showing || pts.size >= 2 || performance.now() - lastCtrlWheel < 300) return;   // already handled elsewhere
+    zoomTo((targetS||s) * (e.scale / gScale), e.clientX || W/2, e.clientY || H/2);
+    gScale = e.scale; wake();
+  }, {passive:false});
+  addEventListener('gestureend', (e) => e.preventDefault(), {passive:false});
 
   const pts = new Map(); let down = null, moved = 0, lastT = 0, pinch = null;
   const pinchInfo = () => { const [a,b] = [...pts.values()]; return {d: Math.hypot(a.x-b.x, a.y-b.y)||1, mid:{x:(a.x+b.x)/2, y:(a.y+b.y)/2}}; };
@@ -354,7 +408,7 @@ body.idle .play-text { opacity: 0; }
     else if (pts.size === 2) { pinch = pinchInfo(); moved = 99; }
   });
   cv.addEventListener('pointermove', (e) => {
-    wake(); if (!pts.has(e.pointerId)) return;
+    if (!pts.has(e.pointerId)) return;
     const prev = pts.get(e.pointerId); pts.set(e.pointerId, {x:e.clientX, y:e.clientY}); const now = performance.now();
     if (pts.size === 1) {
       const dx = e.clientX-prev.x, dy = e.clientY-prev.y; cx -= dx/s; cy -= dy/s; moved += Math.abs(dx)+Math.abs(dy);
@@ -368,18 +422,23 @@ body.idle .play-text { opacity: 0; }
     if (pts.size === 1) { pinch = null; lastT = performance.now(); }
     if (pts.size === 0) {
       dragging = false; cv.classList.remove('dragging'); pinch = null; const now = performance.now();
-      if (e.type === 'pointerup' && down && moved < 6 && now-down.t < 450) { vx = vy = 0; const r = hitTest(e.clientX, e.clientY); if (r) focusRect(r); }
-      else if (now-lastT > 90) { vx = vy = 0; }
+      if (e.type === 'pointerup' && down && moved < 6 && now-down.t < 450) {
+        vx = vy = 0;
+        if (savedView) focusRect();                         // zoomed in: any tap goes back
+        else { const r = hitTest(e.clientX, e.clientY); if (r && matches(r.p)) focusRect(r); }   // ignore dimmed photos
+      } else if (now-lastT > 90) { vx = vy = 0; }
     }
   }
   cv.addEventListener('pointerup', endPointer);
   cv.addEventListener('pointercancel', endPointer);
 
+  // Space is always play/pause (also when a clicked button still has focus); inside the filter panel it works normally
+  const spaceIsGlobal = (e) => e.key === ' ' && !(e.target && e.target.closest && e.target.closest('#panel'));
+  addEventListener('keyup', (e) => { if (spaceIsGlobal(e)) e.preventDefault(); });
   addEventListener('keydown', (e) => {
-    if (e.target && e.target.tagName === 'INPUT') return;
     if (showing) {
       if (e.key === 'Escape') closeShow();
-      else if (e.key === ' ') { e.preventDefault(); toggleShow(); }
+      else if (e.key === ' ') { e.preventDefault(); if (!e.repeat) toggleShow(); }
       else if (e.key === 'ArrowRight') showStep(1);
       else if (e.key === 'ArrowLeft') showStep(-1);
       return;
@@ -388,34 +447,39 @@ body.idle .play-text { opacity: 0; }
     if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(k)) { e.preventDefault(); move(k.replace('Arrow','').toLowerCase()); }
     else if (k === '+' || k === '=') zoomTo((targetS||s)*1.6, W/2, H/2);
     else if (k === '-' || k === '_') zoomTo((targetS||s)/1.6, W/2, H/2);
-    else if (k === ' ' && !(e.target && e.target.tagName === 'BUTTON')) { e.preventDefault(); setDrift(!playing); }
+    else if (spaceIsGlobal(e)) { e.preventDefault(); if (!e.repeat) setDrift(!playing); }
     else if (k === '0') resetView();
     else if (k === 'Escape' && !panel.hidden) { togglePanel(false); filterBtn.focus(); }
   });
 
-  // ---- pad (drift + zoom + filters + slideshow) ----
+  // ---------- controls ----------
   function setDrift(v) { playing = v; driftBtn.setAttribute('aria-label', v?'Pause drift':'Resume drift'); driftIcon.setAttribute('d', v?'M8.5 5v14M15.5 5v14':'M8 4.8L19 12 8 19.2Z'); syncDrift(); }
   function syncDrift() { dirBtns.forEach(b => b.classList.toggle('on', playing && b.dataset.dir === driftDir.name)); }
   driftBtn.addEventListener('click', () => setDrift(!playing));
   dirBtns.forEach(b => b.addEventListener('click', () => move(b.dataset.dir)));
-  document.getElementById('zin').addEventListener('click', () => zoomTo((targetS||s)*1.6, W/2, H/2));
-  document.getElementById('zout').addEventListener('click', () => zoomTo((targetS||s)/1.6, W/2, H/2));
-  document.getElementById('reset').addEventListener('click', resetView);
+  $('zin').addEventListener('click', () => zoomTo((targetS||s)*1.6, W/2, H/2));
+  $('zout').addEventListener('click', () => zoomTo((targetS||s)/1.6, W/2, H/2));
+  $('reset').addEventListener('click', resetView);
   function togglePanel(force) { const open = typeof force === 'boolean' ? force : panel.hidden; panel.hidden = !open; filterBtn.setAttribute('aria-expanded', String(open)); filterBtn.classList.toggle('on', open); wake(); }
   filterBtn.addEventListener('click', () => togglePanel());
 
   let idleT = 0;
-  function wake() { if (showing) return; document.body.classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (panel.hidden && !pad.matches(':focus-within')) document.body.classList.add('idle'); }, 3500); }
+  function wake() {
+    if (showing) return;
+    document.body.classList.remove('idle'); clearTimeout(idleT);
+    idleT = setTimeout(() => { if (panel.hidden && !pad.matches(':focus-within') && document.activeElement !== playText) document.body.classList.add('idle'); }, 3500);
+  }
   addEventListener('pointermove', wake, {passive:true});
+  addEventListener('pointerdown', wake, {passive:true});
 
-  // ---- filter chips (colour only) ----
+  // ---------- colour chips ----------
   const COLHEX = {warm:'#c8794f', green:'#6f8f5a', cool:'#5a82a8', purple:'#9a6ab0', neutral:'#9a948a'};
   function renderChips() {
-    const el = document.getElementById('colours'); el.textContent = '';
-    (window.__cols || []).forEach(c => {
+    const el = $('colours'); el.textContent = '';
+    colourList.forEach(c => {
       const b = document.createElement('button');
       b.className = 'chip' + (colours.has(c) ? ' on' : ''); b.type = 'button'; b.setAttribute('aria-pressed', String(colours.has(c)));
-      const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = COLHEX[c]; b.appendChild(sw);
+      const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = COLHEX[c] || '#777'; b.appendChild(sw);
       b.appendChild(document.createTextNode(c));
       b.addEventListener('click', () => { colours.has(c) ? colours.delete(c) : colours.add(c); dirty = true; renderChips(); updateCount(); });
       el.appendChild(b);
@@ -423,75 +487,113 @@ body.idle .play-text { opacity: 0; }
     fdot.hidden = !anyFilter();
   }
   function updateCount() { const n = anyFilter() ? photos.filter(matches).length : photos.length; countEl.textContent = n + (n === 1 ? ' photo' : ' photos'); }
-  document.getElementById('clear').addEventListener('click', () => { colours.clear(); dirty = true; renderChips(); updateCount(); });
+  $('clear').addEventListener('click', () => { colours.clear(); dirty = true; renderChips(); updateCount(); });
 
-  // ---- slideshow ----
-  const show = document.getElementById('show'), slideA = document.getElementById('slideA'), slideB = document.getElementById('slideB');
-  const showEmpty = document.getElementById('showEmpty'), showui = document.getElementById('showui');
-  const showPlayBtn = document.getElementById('showPlay'), showIcon = document.getElementById('show-icon');
-  let order = [], oi = 0, frontA = true, showPlaying = true, showTimer = 0, hudT = 0;
+  // ---------- slideshow ----------
+  const show = $('show'), layers = [$('slideA'), $('slideB')];
+  const showEmpty = $('showEmpty'), showPlayBtn = $('showPlay'), showIcon = $('show-icon');
+  let order = [], oi = -1, shownOnce = false, lastShown = null, topIdx = -1, token = 0, failures = 0;
+  let showPlaying = true, showTimer = 0, hudT = 0, outT = 0, enteredFullscreen = false;
 
-  function buildOrder() { order = photos.filter(matches).map(p => p.id); for (let i = order.length-1; i>0; i--){const j=Math.floor(Math.random()*(i+1)); [order[i],order[j]]=[order[j],order[i]];} oi = -1; }
-  function preload(id) { if (id) { const im = new Image(); im.src = fullSrc(id, 'full'); } }
+  function shuffle(a) { for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function buildOrder() { order = shuffle(photos.filter(matches).map(p => p.id)); oi = -1; shownOnce = false; }
+  function preload(id) { const im = new Image(); im.decoding = 'async'; im.src = src('full', id); }
+
   function render(id) {
-    const back = frontA ? slideB : slideA, front = frontA ? slideA : slideB;
-    back.onload = () => { back.classList.add('vis'); front.classList.remove('vis'); frontA = !frontA; };
-    if (back.src.endsWith(fullSrc(id,'full'))) back.onload();
-    else back.src = fullSrc(id, 'full');
+    const my = ++token;
+    const inIdx = topIdx === 0 ? 1 : 0;
+    const inc = layers[inIdx], out = topIdx >= 0 ? layers[topIdx] : null;
+    inc.style.transition = 'none'; inc.classList.remove('vis');   // reset the incoming layer instantly...
+    inc.style.zIndex = 2; if (out) out.style.zIndex = 1;          // ...and put it on top of the current one
+    const reveal = () => {
+      if (my !== token) return;
+      void inc.offsetWidth;                // commit the hidden state before fading
+      inc.style.transition = '';
+      inc.classList.add('vis');            // new photo fades in over the old one, which stays put: no dark dip
+      topIdx = inIdx; failures = 0; lastShown = id;
+      clearTimeout(outT);
+      if (out) outT = setTimeout(() => { if (my === token) out.classList.remove('vis'); }, FADE);   // then the old one's edges fade
+    };
+    inc.onload = () => { if (my !== token) return; (inc.decode ? inc.decode() : Promise.resolve()).then(reveal, reveal); };
+    inc.onerror = () => { if (my === token && ++failures < Math.min(order.length, 20)) advance(1); };   // skip broken photos
+    const url = src('full', id);
+    if (inc.getAttribute('src') === url && inc.complete && inc.naturalWidth) inc.onload();
+    else inc.src = url;
   }
   function advance(step) {
     if (!order.length) return;
     oi = mod(oi + step, order.length);
-    if (step > 0 && oi === 0) { // wrapped forward: reshuffle for a fresh pass
-      for (let i = order.length-1; i>0; i--){const j=Math.floor(Math.random()*(i+1)); [order[i],order[j]]=[order[j],order[i]];}
+    if (step > 0 && oi === 0 && shownOnce) {          // a full pass is done: new random order
+      shuffle(order);
+      if (order.length > 1 && order[0] === lastShown) [order[0], order[1]] = [order[1], order[0]];   // never the same twice in a row
     }
+    shownOnce = true;
     render(order[oi]);
-    preload(order[mod(oi+1, order.length)]);
+    if (order.length > 1) preload(order[mod(oi+1, order.length)]);
   }
-  function scheduleShow() { clearTimeout(showTimer); if (showPlaying) showTimer = setTimeout(() => { advance(1); scheduleShow(); }, HOLD); }
+  function scheduleShow() { clearTimeout(showTimer); if (showPlaying && order.length > 1) showTimer = setTimeout(() => { advance(1); scheduleShow(); }, HOLD); }
   function showStep(step) { advance(step); scheduleShow(); bumpHud(); }
   function setShowPlaying(v) { showPlaying = v; showPlayBtn.setAttribute('aria-label', v?'Pause':'Play'); showIcon.setAttribute('d', v?'M8.5 5v14M15.5 5v14':'M8 4.8L19 12 8 19.2Z'); scheduleShow(); }
   function toggleShow() { setShowPlaying(!showPlaying); bumpHud(); }
   function bumpHud() { show.classList.remove('hud-off'); clearTimeout(hudT); hudT = setTimeout(() => show.classList.add('hud-off'), 3000); }
+  function setBackgroundInert(v) { [cv, pad, panel, playText].forEach(el => { el.inert = v; }); }
+
   function openShow() {
     buildOrder();
-    show.hidden = false; showing = true;
-    document.body.classList.remove('idle');
-    if (!order.length) { showEmpty.hidden = false; return; }
-    showEmpty.hidden = true;
-    slideA.classList.remove('vis'); slideB.classList.remove('vis'); frontA = true;
-    setShowPlaying(true); advance(1); bumpHud();
-    if (show.requestFullscreen) show.requestFullscreen().catch(() => {});
+    showing = true; show.hidden = false; setBackgroundInert(true);
+    layers.forEach(l => { l.style.transition = 'none'; l.classList.remove('vis'); l.style.zIndex = ''; });
+    topIdx = -1; token++; failures = 0; clearTimeout(outT);
+    showEmpty.hidden = order.length > 0;
+    if (order.length) { setShowPlaying(true); advance(1); }
+    bumpHud();
+    showPlayBtn.focus({preventScroll: true});
+    enteredFullscreen = false;
+    if (show.requestFullscreen) show.requestFullscreen().then(() => { enteredFullscreen = true; }, () => {});
   }
   function closeShow() {
-    clearTimeout(showTimer); show.hidden = true; showing = false;
+    if (!showing) return;
+    clearTimeout(showTimer); clearTimeout(outT); clearTimeout(hudT); token++;
+    showing = false; show.hidden = true; setBackgroundInert(false);
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    wake();
+    playText.focus({preventScroll: true}); dirty = true; wake();
   }
-  document.getElementById('showbtn').addEventListener('click', openShow);
-  document.getElementById('showClose').addEventListener('click', closeShow);
+  // Esc in fullscreen is taken by the browser: closing the show when fullscreen ends keeps them in sync
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && showing && enteredFullscreen) closeShow(); });
+
+  playText.addEventListener('click', openShow);
+  $('showClose').addEventListener('click', closeShow);
   showPlayBtn.addEventListener('click', toggleShow);
-  document.getElementById('showPrev').addEventListener('click', () => showStep(-1));
-  document.getElementById('showNext').addEventListener('click', () => showStep(1));
+  $('showPrev').addEventListener('click', () => showStep(-1));
+  $('showNext').addEventListener('click', () => showStep(1));
   show.addEventListener('pointermove', bumpHud, {passive:true});
   show.addEventListener('pointerdown', bumpHud, {passive:true});
 
-  // ---- start ----
-  function shuffle(a) { for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i], a[j]] = [a[j], a[i]]; } }
+  // ---------- discourage saving photos (right-click, drag, long-press) ----------
+  [cv, show].forEach(el => el.addEventListener('contextmenu', (e) => e.preventDefault()));
+  addEventListener('dragstart', (e) => { if (e.target && e.target.tagName === 'IMG') e.preventDefault(); });
+
+  // ---------- start ----------
+  const VALID_ID = /^[a-z0-9-]{1,80}$/;
   async function start() {
     addEventListener('resize', resize); resize();
     try {
-      const data = await (await fetch('/loop/photos.json', {cache:'no-store'})).json();
-      photos = (data.photos || []).map(p => ({...p, colour: Array.isArray(p.colour) ? p.colour : [p.colour]}));
-      window.__cols = data.colours || ['warm','green','cool','purple','neutral'];
-    } catch (err) { bootMsg.textContent = 'Could not load photos.json'; return; }
+      const res = await fetch('/loop/photos.json', {cache: 'no-cache'});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      colourList = Array.isArray(data.colours) ? data.colours.filter(c => typeof c === 'string') : ['warm','green','cool','purple','neutral'];
+      photos = (Array.isArray(data.photos) ? data.photos : [])
+        .filter(p => p && typeof p.id === 'string' && VALID_ID.test(p.id) && Number.isFinite(p.ratio) && p.ratio > 0.05 && p.ratio < 20)
+        .map(p => ({ id: p.id, ratio: p.ratio,
+          color: /^#[0-9a-f]{6}$/i.test(p.color) ? p.color : '#333333',
+          colour: Array.isArray(p.colour) ? p.colour : [p.colour || 'neutral'] }));
+    } catch (err) { bootMsg.textContent = 'Could not load photos'; return; }
     if (!photos.length) { bootMsg.textContent = 'No photos yet'; return; }
     shuffle(photos);
     layout(); renderChips(); updateCount();
     s = s0; setDrift(playing); wake();
     requestAnimationFrame(frame);
     requestAnimationFrame(() => boot.classList.add('gone'));
-    setTimeout(() => boot.hidden = true, 600);
+    setTimeout(() => { boot.hidden = true; }, 600);
   }
   start();
 })();

@@ -1,0 +1,7 @@
+# Files that live in the repo but must NOT be published on bloxbcn.com
+*.py
+tags.json
+*.md
+.DS_Store
+__pycache__
+*.tmp
