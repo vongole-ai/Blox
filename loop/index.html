@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111110">
+<meta name="color-scheme" content="dark">
 <title>Loop — Blox BCN</title>
 <meta name="description" content="Loop: an endless canvas of photographs.">
 <link rel="preload" href="/loop/fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
@@ -18,7 +19,7 @@
   --line: #2b2b31; --fg: #ededf0; --muted: #8b8b93; --cream: #ededf0; --ink: #0e0e10;
   --veil: rgba(14,14,14,0.86); --shadow: rgba(0,0,0,0.55);
   --ui: 'Archivo','Helvetica Neue',Arial,sans-serif;
-  --grade: brightness(0.95) contrast(0.94) saturate(0.97);   /* subtle global grade */
+  --grade: brightness(0.98) contrast(0.97) saturate(0.98);   /* very light global grade, evens out the mix of cameras */
   --fade: 2000ms;
   color-scheme: dark;
 }
@@ -32,7 +33,9 @@ button { touch-action: manipulation; }
 body.idle #stage { cursor: none; }
 .vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 60%, var(--veil) 100%); }
 
-.boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); transition: opacity .5s ease; z-index: 30; }
+.boot { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; background: var(--bg); transition: opacity .5s ease; z-index: 30; }
+.boot .retry { min-height: 36px; padding: 0 16px; border-radius: 9px; border: 1px solid var(--line); background: transparent;
+  color: var(--fg); font: inherit; font-size: 12px; cursor: pointer; }
 .boot.gone { opacity: 0; pointer-events: none; }
 .boot span { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
 
@@ -90,13 +93,13 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
 .panel .hint { font-size: 11px; color: var(--muted); letter-spacing: 0.02em; text-align: right; }
 
 /* ---- slideshow: the new photo fades in ON TOP of the old one (no dark dip) ---- */
-.show { position: fixed; inset: 0; background: #000; z-index: 40; }
+.show { position: fixed; inset: 0; background: #000; z-index: 40; touch-action: none; }   /* swipes go to the slideshow, not the browser */
 .show .slide { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
   opacity: 0; z-index: 1; transition: opacity var(--fade) cubic-bezier(.4,0,.2,1);
   filter: var(--grade); pointer-events: none; -webkit-user-drag: none; }
 .show .slide.vis { opacity: 1; }
-.show-ui { position: absolute; inset: 0; z-index: 5; pointer-events: none; transition: opacity .5s ease; }
-.show.hud-off .show-ui { opacity: 0; }
+.show-ui { position: absolute; inset: 0; z-index: 5; pointer-events: none; transition: opacity .5s ease, visibility 0s; }
+.show.hud-off .show-ui { opacity: 0; visibility: hidden; transition: opacity .5s ease, visibility 0s .5s; }   /* hidden controls can't be tabbed to */
 .show.hud-off .show-ui * { pointer-events: none !important; }
 .show-ui .close { pointer-events: auto; position: absolute; top: calc(22px + env(safe-area-inset-top,0px)); right: calc(22px + env(safe-area-inset-right,0px));
   width: 44px; height: 44px; border-radius: 10px; border: 0; background: rgba(20,20,22,0.5); color: var(--fg);
@@ -121,13 +124,13 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
 </style>
 </head>
 <body>
-<canvas id="stage" role="img" aria-label="Infinite photo mosaic. Drag to move, scroll to zoom, click a photo to open it."></canvas>
+<canvas id="stage" role="img" aria-label="Infinite photo mosaic. Drag to move, scroll to zoom, click a photo to zoom in and click again to zoom back out."></canvas>
 <div class="vignette" aria-hidden="true"></div>
 <div class="boot" id="boot"><span id="boot-msg">Loading</span></div>
 
 <div class="panel" id="panel" hidden role="dialog" aria-label="Filters">
-  <div class="row"><h2>Colour</h2><span class="count" id="count"></span></div>
-  <div class="chips" id="colours"></div>
+  <div class="row"><h2>Colour</h2><span class="count" id="count" aria-live="polite"></span></div>
+  <div class="chips" id="colours" role="group" aria-label="Colour filters"></div>
   <div class="foot">
     <button class="reset" id="clear" type="button">Clear</button>
     <span class="hint">Play uses the selected colours</span>
@@ -158,7 +161,7 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
 
 <button type="button" id="showbtn" class="play-text" aria-label="Start slideshow">Play</button>
 
-<div class="show" id="show" hidden aria-label="Slideshow">
+<div class="show" id="show" hidden role="dialog" aria-modal="true" aria-label="Slideshow">
   <img class="slide" id="slideA" alt="" draggable="false">
   <img class="slide" id="slideB" alt="" draggable="false">
   <div class="show-empty" id="showEmpty" hidden>No photos for this colour</div>
@@ -180,7 +183,7 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
   const SPEED = 24;                                        // drift speed, screen px per second
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const HOLD = 7000;                                       // slideshow: time per photo
-  const FADE = reduceMotion ? 0 : 2000;                    // slideshow: cross-fade length
+  const FADE = reduceMotion ? 400 : 2000;                  // slideshow: cross-fade length (short, not a hard cut, with reduced motion)
   // which size to show, by the tile's long side in device pixels
   const MID_AT = 300, FULL_AT = 1000, TINY = 16;
   // how many off-screen images to keep in memory (on-screen ones are never dropped)
@@ -206,7 +209,7 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
   const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
   const ease = (t) => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
   const phase = (k) => { const x = Math.sin(k*127.1+311.7)*43758.5453; return x - Math.floor(x); };
-  const minS = () => W / (40*STEP);
+  const minS = () => W / ((W < 640 ? 14 : 40) * STEP);    // widest zoom: ~40 columns on a computer, ~14 on a phone
   const maxS = () => (Math.max(W, H*1.5)/COL) * 0.98;
   const clampS = (v) => clamp(v, minS(), maxS());
   const src = (kind, id) => '/loop/photos/' + kind + '/' + id + '.webp';
@@ -230,6 +233,7 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
   function request(kind, id) {
     const m = store[kind]; let e = m.get(id);
     if (!e) { e = {img:null, loading:false, f:frameNo}; m.set(id, e); }
+    else { m.delete(id); m.set(id, e); }        // keep least-recently-used order
     e.f = frameNo;
     if (!e.img && !e.loading) { e.loading = true; queue.push({kind, id, e}); }
     trim(m, CAP[kind]);
@@ -325,10 +329,12 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
   // ---------- camera ----------
   function applyScale(ns, ax, ay) { const wx = cx+(ax-W/2)/s, wy = cy+(ay-H/2)/s; s = ns; cx = wx-(ax-W/2)/s; cy = wy-(ay-H/2)/s; }
   function zoomTo(ns, ax, ay) { tween = null; targetS = clampS(ns); anchor = {x:ax, y:ay}; }
-  function startTween(to, dur) {
+  // focus (optional): a world point that should travel to the screen centre in a straight line
+  function startTween(to, dur, focus) {
     targetS = null;
     if (reduceMotion || dur <= 0) { cx = to.cx; cy = to.cy; s = Math.exp(to.ls); tween = null; dirty = true; return; }
     tween = {from:{cx, cy, ls:Math.log(s)}, to, t0:performance.now(), dur};
+    if (focus) { tween.f = focus; tween.d0 = {x:(focus.x - cx)*s, y:(focus.y - cy)*s}; }   // its offset from centre, on screen
   }
   function panBy(dx, dy) { const b = tween ? tween.to : {cx, cy, ls:Math.log(targetS||s)}; const sc = Math.exp(b.ls); startTween({cx:b.cx+dx/sc, cy:b.cy+dy/sc, ls:b.ls}, 650); }
   const DIRS = {left:{x:-1,y:0}, right:{x:1,y:0}, up:{x:0,y:-1}, down:{x:0,y:1}};
@@ -346,9 +352,13 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
     savedView = {cx, cy, ls:Math.log(s), playing};
     setDrift(false);
     const rcx = r.x+r.w/2, rcy = r.y+r.h/2, ts = clampS(Math.min(W*0.88/r.w, H*0.84/r.h));
-    startTween({cx:rcx, cy:rcy, ls:Math.log(ts)}, 850);
+    startTween({cx:rcx, cy:rcy, ls:Math.log(ts)}, 850, {x:rcx, y:rcy});   // the photo glides straight to the centre
   }
-  function resetView() { savedView = null; startTween({cx:0, cy:0, ls:Math.log(minS())}, 900); }   // starting view = widest zoom
+  function resetView() {                         // starting view = widest zoom, drifting
+    savedView = null;
+    startTween({cx:0, cy:0, ls:Math.log(minS())}, 900);
+    setDrift(!reduceMotion);
+  }
 
   let last = performance.now();
   function frame(now) {
@@ -356,9 +366,15 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
     if (!showing) {
       if (tween) {
         const pr = clamp((now-tween.t0)/tween.dur, 0, 1), e = ease(pr);
-        cx = tween.from.cx + (tween.to.cx-tween.from.cx)*e;
-        cy = tween.from.cy + (tween.to.cy-tween.from.cy)*e;
         s = Math.exp(tween.from.ls + (tween.to.ls-tween.from.ls)*e);
+        if (tween.f) {                          // move the camera so the photo's screen position follows a straight line
+          const k = 1 - e;
+          cx = tween.f.x - tween.d0.x*k/s;
+          cy = tween.f.y - tween.d0.y*k/s;
+        } else {
+          cx = tween.from.cx + (tween.to.cx-tween.from.cx)*e;
+          cy = tween.from.cy + (tween.to.cy-tween.from.cy)*e;
+        }
         if (pr >= 1) tween = null;
         dirty = true;
       }
@@ -401,9 +417,14 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
   }, {passive:false});
   addEventListener('gestureend', (e) => e.preventDefault(), {passive:false});
 
-  const pts = new Map(); let down = null, moved = 0, lastT = 0, pinch = null;
+  const pts = new Map(); let down = null, moved = 0, lastT = 0, pinch = null, downWasIdle = false, skipTap = false;
   const pinchInfo = () => { const [a,b] = [...pts.values()]; return {d: Math.hypot(a.x-b.x, a.y-b.y)||1, mid:{x:(a.x+b.x)/2, y:(a.y+b.y)/2}}; };
+  // a tap where the hidden controls sit should only bring them back, not open the photo underneath
+  function onHiddenControls(x, y) {
+    return [pad, playText].some(el => { const r = el.getBoundingClientRect(); return x >= r.left-12 && x <= r.right+12 && y >= r.top-12 && y <= r.bottom+12; });
+  }
   cv.addEventListener('pointerdown', (e) => {
+    if (pts.size === 0) downWasIdle = document.body.classList.contains('idle');
     wake(); cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, {x:e.clientX, y:e.clientY}); tween = null; targetS = null;
     if (pts.size === 1) { dragging = true; cv.classList.add('dragging'); down = {x:e.clientX, y:e.clientY, t:performance.now()}; moved = 0; vx = vy = 0; lastT = performance.now(); }
     else if (pts.size === 2) { pinch = pinchInfo(); moved = 99; }
@@ -423,9 +444,12 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
     if (pts.size === 1) { pinch = null; lastT = performance.now(); }
     if (pts.size === 0) {
       dragging = false; cv.classList.remove('dragging'); pinch = null; const now = performance.now();
+      const swallow = skipTap; skipTap = false;
       if (e.type === 'pointerup' && down && moved < 6 && now-down.t < 450) {
         vx = vy = 0;
-        if (savedView) focusRect();                         // zoomed in: any tap goes back
+        if (swallow) { /* this tap closed the filter panel */ }
+        else if (downWasIdle && onHiddenControls(e.clientX, e.clientY)) { /* only woke the controls */ }
+        else if (savedView) focusRect();                    // zoomed in: any tap goes back
         else { const r = hitTest(e.clientX, e.clientY); if (r && matches(r.p)) focusRect(r); }   // ignore dimmed photos
       } else if (now-lastT > 90) { vx = vy = 0; }
     }
@@ -438,6 +462,7 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
   addEventListener('keyup', (e) => { if (spaceIsGlobal(e)) e.preventDefault(); });
   addEventListener('keydown', (e) => {
     if (showing) {
+      bumpHud();                                // any key brings the slideshow controls back
       if (e.key === 'Escape') closeShow();
       else if (e.key === ' ') { e.preventDefault(); if (!e.repeat) toggleShow(); }
       else if (e.key === 'ArrowRight') showStep(1);
@@ -463,6 +488,12 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
   $('reset').addEventListener('click', resetView);
   function togglePanel(force) { const open = typeof force === 'boolean' ? force : panel.hidden; panel.hidden = !open; filterBtn.setAttribute('aria-expanded', String(open)); filterBtn.classList.toggle('on', open); wake(); }
   filterBtn.addEventListener('click', () => togglePanel());
+  // tap or click anywhere outside the panel closes it (that tap doesn't also open a photo)
+  addEventListener('pointerdown', (e) => {
+    if (panel.hidden || panel.contains(e.target) || filterBtn.contains(e.target)) return;
+    togglePanel(false);
+    if (e.target === cv) skipTap = true;
+  }, true);
 
   let idleT = 0;
   function wake() {
@@ -475,20 +506,26 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
 
   // ---------- colour chips ----------
   const COLHEX = {warm:'#c8794f', green:'#6f8f5a', cool:'#5a82a8', purple:'#9a6ab0', neutral:'#9a948a'};
-  function renderChips() {
-    const el = $('colours'); el.textContent = '';
+  const chipEls = new Map();
+  function buildChips() {                        // built once; clicks only update state, so keyboard focus stays put
+    const el = $('colours');
     colourList.forEach(c => {
       const b = document.createElement('button');
-      b.className = 'chip' + (colours.has(c) ? ' on' : ''); b.type = 'button'; b.setAttribute('aria-pressed', String(colours.has(c)));
+      b.className = 'chip'; b.type = 'button';
       const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = COLHEX[c] || '#777'; b.appendChild(sw);
       b.appendChild(document.createTextNode(c));
-      b.addEventListener('click', () => { colours.has(c) ? colours.delete(c) : colours.add(c); dirty = true; renderChips(); updateCount(); });
-      el.appendChild(b);
+      b.addEventListener('click', () => { colours.has(c) ? colours.delete(c) : colours.add(c); filterChanged(); });
+      el.appendChild(b); chipEls.set(c, b);
     });
+    syncChips();
+  }
+  function syncChips() {
+    chipEls.forEach((b, c) => { const on = colours.has(c); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
     fdot.hidden = !anyFilter();
   }
+  function filterChanged() { dirty = true; syncChips(); updateCount(); }
   function updateCount() { const n = anyFilter() ? photos.filter(matches).length : photos.length; countEl.textContent = n + (n === 1 ? ' photo' : ' photos'); }
-  $('clear').addEventListener('click', () => { colours.clear(); dirty = true; renderChips(); updateCount(); });
+  $('clear').addEventListener('click', () => { colours.clear(); filterChanged(); });
 
   // ---------- slideshow ----------
   const show = $('show'), layers = [$('slideA'), $('slideB')];
@@ -498,7 +535,13 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
 
   function shuffle(a) { for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
   function buildOrder() { order = shuffle(photos.filter(matches).map(p => p.id)); oi = -1; shownOnce = false; }
-  function preload(id) { const im = new Image(); im.decoding = 'async'; im.src = src('full', id); }
+  const preloading = new Map();                  // hold a reference until the next photo has finished loading
+  function preload(id) {
+    if (preloading.has(id)) return;
+    const im = new Image(); im.decoding = 'async';
+    im.onload = im.onerror = () => preloading.delete(id);
+    preloading.set(id, im); im.src = src('full', id);
+  }
 
   function render(id) {
     const my = ++token;
@@ -567,7 +610,18 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
   $('showPrev').addEventListener('click', () => showStep(-1));
   $('showNext').addEventListener('click', () => showStep(1));
   show.addEventListener('pointermove', bumpHud, {passive:true});
-  show.addEventListener('pointerdown', bumpHud, {passive:true});
+  // swipe left / right (or drag with the mouse) for the next / previous photo; a tap just shows the controls
+  let swipe = null;
+  show.addEventListener('pointerdown', (e) => {
+    bumpHud();
+    swipe = e.target.closest('button') ? null : {x: e.clientX, y: e.clientY};
+  });
+  show.addEventListener('pointerup', (e) => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y; swipe = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) showStep(dx < 0 ? 1 : -1);
+  });
+  show.addEventListener('pointercancel', () => { swipe = null; });
 
   // ---------- discourage saving photos (right-click, drag, long-press) ----------
   [cv, show].forEach(el => el.addEventListener('contextmenu', (e) => e.preventDefault()));
@@ -575,8 +629,18 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
 
   // ---------- start ----------
   const VALID_ID = /^[a-z0-9-]{1,80}$/;
+  let resizeBound = false;
+  function fail(msg) {                           // show what went wrong, with a way to try again
+    bootMsg.textContent = msg;
+    if ($('retry')) return;
+    const b = document.createElement('button');
+    b.id = 'retry'; b.className = 'retry'; b.type = 'button'; b.textContent = 'Try again';
+    b.addEventListener('click', () => { b.remove(); bootMsg.textContent = 'Loading'; start(); });
+    boot.appendChild(b);
+  }
   async function start() {
-    addEventListener('resize', resize); resize();
+    if (!resizeBound) { addEventListener('resize', resize); resizeBound = true; }
+    resize();
     try {
       const res = await fetch('/loop/photos.json', {cache: 'no-cache'});
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -587,10 +651,10 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
         .map(p => ({ id: p.id, ratio: p.ratio,
           color: /^#[0-9a-f]{6}$/i.test(p.color) ? p.color : '#333333',
           colour: Array.isArray(p.colour) ? p.colour : [p.colour || 'neutral'] }));
-    } catch (err) { bootMsg.textContent = 'Could not load photos'; return; }
-    if (!photos.length) { bootMsg.textContent = 'No photos yet'; return; }
+    } catch (err) { return fail('Could not load the photos'); }
+    if (!photos.length) return fail('No photos yet');
     shuffle(photos);
-    layout(); renderChips(); updateCount();
+    layout(); buildChips(); updateCount();
     s = minS(); setDrift(playing); wake();          // open at the widest zoom, drifting
     requestAnimationFrame(frame);
     requestAnimationFrame(() => boot.classList.add('gone'));
