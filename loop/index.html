@@ -334,11 +334,12 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
   const DIRS = {left:{x:-1,y:0}, right:{x:1,y:0}, up:{x:0,y:-1}, down:{x:0,y:1}};
   function move(name) { const d = DIRS[name]; driftDir = {x:d.x, y:d.y, name}; panBy(d.x*W*0.45, d.y*H*0.45); syncDrift(); wake(); }
 
-  // click a photo: zoom in and remember the view; click again: return to that exact view and motion
+  // click a photo: zoom in and remember the zoom; you can drag around up close;
+  // click again: back to the previous zoom, right where you are now, and the drift resumes
   function focusRect(r) {
     if (savedView) {
       const sv = savedView; savedView = null;
-      startTween({cx:sv.cx, cy:sv.cy, ls:sv.ls}, 800);
+      startTween({cx, cy, ls:sv.ls}, 800);
       setDrift(sv.playing);
       return;
     }
@@ -347,7 +348,7 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
     const rcx = r.x+r.w/2, rcy = r.y+r.h/2, ts = clampS(Math.min(W*0.88/r.w, H*0.84/r.h));
     startTween({cx:rcx, cy:rcy, ls:Math.log(ts)}, 850);
   }
-  function resetView() { savedView = null; startTween({cx:0, cy:0, ls:Math.log(s0)}, 900); }
+  function resetView() { savedView = null; startTween({cx:0, cy:0, ls:Math.log(minS())}, 900); }   // starting view = widest zoom
 
   let last = performance.now();
   function frame(now) {
@@ -590,7 +591,7 @@ body.idle .play-text { opacity: 0; pointer-events: none; }
     if (!photos.length) { bootMsg.textContent = 'No photos yet'; return; }
     shuffle(photos);
     layout(); renderChips(); updateCount();
-    s = s0; setDrift(playing); wake();
+    s = minS(); setDrift(playing); wake();          // open at the widest zoom, drifting
     requestAnimationFrame(frame);
     requestAnimationFrame(() => boot.classList.add('gone'));
     setTimeout(() => { boot.hidden = true; }, 600);
